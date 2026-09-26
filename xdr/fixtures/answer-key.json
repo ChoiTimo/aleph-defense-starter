@@ -1,0 +1,13 @@
+{
+  "schema": "aleph.xdr.synthetic-answer-key.v1",
+  "synthetic": true,
+  "meaning": { "block_candidate": "차단 후보입니다. 승인 없이 운영 정책에 자동 반영하지 않습니다.", "alert": "추가 확인이 필요한 경보입니다.", "record": "정상 사례로 기록하고 차단하지 않습니다." },
+  "cases": {
+    "bf-001": "block_candidate", "bf-002": "alert", "bf-003": "record",
+    "wi-001": "block_candidate", "wi-002": "alert", "wi-003": "record",
+    "kc-001": "block_candidate", "kc-002": "alert", "kc-003": "record",
+    "ps-001": "block_candidate", "ps-002": "alert", "ps-003": "record",
+    "pr-001": "block_candidate", "pr-002": "alert", "pr-003": "record",
+    "ex-001": "block_candidate", "ex-002": "alert", "ex-003": "record"
+  }
+}

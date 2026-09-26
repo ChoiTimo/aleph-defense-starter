@@ -1,0 +1,10 @@
+{
+  "schema": "aleph.xdr.synthetic-wazuh.v1",
+  "moduleKey": "brute-force",
+  "synthetic": true,
+  "alerts": [
+    { "id": "bf-001", "timestamp": "2026-10-08T01:00:00Z", "agent": { "id": "training-pc", "name": "training-pc" }, "rule": { "id": "5712", "level": 12, "description": "같은 주소에서 90초 동안 로그인 실패 27회" }, "data": { "srcip": "192.0.2.10", "user": "training-a", "outcome": "failed", "count": 27, "windowSeconds": 90 } },
+    { "id": "bf-002", "timestamp": "2026-10-08T01:05:00Z", "agent": { "id": "training-pc", "name": "training-pc" }, "rule": { "id": "5710", "level": 6, "description": "같은 주소에서 5분 동안 로그인 실패 4회" }, "data": { "srcip": "192.0.2.11", "user": "training-b", "outcome": "failed", "count": 4, "windowSeconds": 300 } },
+    { "id": "bf-003", "timestamp": "2026-10-08T01:10:00Z", "agent": { "id": "training-pc", "name": "training-pc" }, "rule": { "id": "5701", "level": 2, "description": "승인된 사용자의 정상 로그인" }, "data": { "srcip": "192.0.2.12", "user": "training-c", "outcome": "success", "count": 1, "windowSeconds": 300 } }
+  ]
+}

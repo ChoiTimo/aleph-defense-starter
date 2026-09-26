@@ -1,0 +1,10 @@
+{
+  "schema": "aleph.xdr.synthetic-wazuh.v1",
+  "moduleKey": "known-cve",
+  "synthetic": true,
+  "alerts": [
+    { "id": "kc-001", "timestamp": "2026-10-08T03:00:00Z", "agent": { "id": "training-web", "name": "training-web" }, "rule": { "id": "31153", "level": 13, "description": "CVE-2021-44228 형태의 악용 신호가 반복 탐지됨" }, "data": { "srcip": "203.0.113.10", "user": "training-a", "outcome": "denied", "count": 9, "indicator": "sanitized-lookup-pattern" } },
+    { "id": "kc-002", "timestamp": "2026-10-08T03:05:00Z", "agent": { "id": "training-web", "name": "training-web" }, "rule": { "id": "31152", "level": 7, "description": "관련 문자열 하나가 로그에 나타났으나 요청 맥락 불충분" }, "data": { "srcip": "203.0.113.11", "user": "training-b", "outcome": "review", "count": 1, "indicator": "unconfirmed-reference" } },
+    { "id": "kc-003", "timestamp": "2026-10-08T03:10:00Z", "agent": { "id": "training-web", "name": "training-web" }, "rule": { "id": "31151", "level": 2, "description": "정상 공개 문서 읽기" }, "data": { "srcip": "203.0.113.12", "user": "training-c", "outcome": "allowed", "count": 1, "indicator": "normal-read" } }
+  ]
+}

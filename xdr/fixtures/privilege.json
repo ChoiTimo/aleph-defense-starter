@@ -1,0 +1,10 @@
+{
+  "schema": "aleph.xdr.synthetic-wazuh.v1",
+  "moduleKey": "privilege",
+  "synthetic": true,
+  "alerts": [
+    { "id": "pr-001", "timestamp": "2026-10-08T05:00:00Z", "agent": { "id": "training-pc", "name": "training-pc" }, "rule": { "id": "60103", "level": 13, "description": "미승인 계정이 관리자 그룹에 추가되고 권한 명령 실행" }, "data": { "srcip": "198.51.100.20", "user": "training-a", "outcome": "unapproved", "count": 3, "indicator": "unexpected-admin-grant" } },
+    { "id": "pr-002", "timestamp": "2026-10-08T05:05:00Z", "agent": { "id": "training-pc", "name": "training-pc" }, "rule": { "id": "60102", "level": 7, "description": "업무 시간 밖 관리자 명령 1건, 승인 기록 미확인" }, "data": { "srcip": "198.51.100.21", "user": "training-b", "outcome": "review", "count": 1, "indicator": "off-hours-admin" } },
+    { "id": "pr-003", "timestamp": "2026-10-08T05:10:00Z", "agent": { "id": "training-pc", "name": "training-pc" }, "rule": { "id": "60101", "level": 2, "description": "승인된 관리자 작업" }, "data": { "srcip": "198.51.100.22", "user": "training-c", "outcome": "approved", "count": 1, "indicator": "approved-admin" } }
+  ]
+}

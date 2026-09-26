@@ -1,0 +1,10 @@
+{
+  "schema": "aleph.xdr.synthetic-wazuh.v1",
+  "moduleKey": "exfiltration",
+  "synthetic": true,
+  "alerts": [
+    { "id": "ex-001", "timestamp": "2026-10-08T06:00:00Z", "agent": { "id": "training-pc", "name": "training-pc" }, "rule": { "id": "85203", "level": 13, "description": "처음 보는 외부 목적지로 업무 시간 밖 대용량 전송" }, "data": { "srcip": "203.0.113.20", "user": "training-a", "outcome": "unapproved", "count": 1, "bytes": 125829120, "indicator": "unknown-destination-large-transfer" } },
+    { "id": "ex-002", "timestamp": "2026-10-08T06:05:00Z", "agent": { "id": "training-pc", "name": "training-pc" }, "rule": { "id": "85202", "level": 7, "description": "새 외부 목적지로 중간 크기 전송, 업무 승인 여부 미확인" }, "data": { "srcip": "203.0.113.21", "user": "training-b", "outcome": "review", "count": 1, "bytes": 10485760, "indicator": "new-destination-unconfirmed" } },
+    { "id": "ex-003", "timestamp": "2026-10-08T06:10:00Z", "agent": { "id": "training-pc", "name": "training-pc" }, "rule": { "id": "85201", "level": 2, "description": "승인된 백업 목적지로 정기 전송" }, "data": { "srcip": "203.0.113.22", "user": "training-c", "outcome": "approved", "count": 1, "bytes": 125829120, "indicator": "approved-backup" } }
+  ]
+}

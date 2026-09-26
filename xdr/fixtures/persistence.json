@@ -1,0 +1,10 @@
+{
+  "schema": "aleph.xdr.synthetic-wazuh.v1",
+  "moduleKey": "persistence",
+  "synthetic": true,
+  "alerts": [
+    { "id": "ps-001", "timestamp": "2026-10-08T04:00:00Z", "agent": { "id": "training-pc", "name": "training-pc" }, "rule": { "id": "88103", "level": 12, "description": "승인되지 않은 시작 작업이 반복 등록됨" }, "data": { "srcip": "192.0.2.20", "user": "training-a", "outcome": "unapproved", "count": 6, "indicator": "unknown-startup-task" } },
+    { "id": "ps-002", "timestamp": "2026-10-08T04:05:00Z", "agent": { "id": "training-pc", "name": "training-pc" }, "rule": { "id": "88102", "level": 6, "description": "새 예약 작업 1건의 승인 여부가 미확인" }, "data": { "srcip": "192.0.2.21", "user": "training-b", "outcome": "review", "count": 1, "indicator": "new-task-unconfirmed" } },
+    { "id": "ps-003", "timestamp": "2026-10-08T04:10:00Z", "agent": { "id": "training-pc", "name": "training-pc" }, "rule": { "id": "88101", "level": 2, "description": "승인된 유지보수 작업 실행" }, "data": { "srcip": "192.0.2.22", "user": "training-c", "outcome": "approved", "count": 1, "indicator": "approved-maintenance" } }
+  ]
+}

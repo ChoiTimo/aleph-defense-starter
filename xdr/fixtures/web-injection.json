@@ -1,0 +1,10 @@
+{
+  "schema": "aleph.xdr.synthetic-wazuh.v1",
+  "moduleKey": "web-injection",
+  "synthetic": true,
+  "alerts": [
+    { "id": "wi-001", "timestamp": "2026-10-08T02:00:00Z", "agent": { "id": "training-web", "name": "training-web" }, "rule": { "id": "31103", "level": 12, "description": "자료 API에 반복된 SQL 주입 패턴 요청" }, "data": { "srcip": "198.51.100.10", "user": "training-a", "outcome": "denied", "count": 18, "indicator": "sanitized-sqli-pattern" } },
+    { "id": "wi-002", "timestamp": "2026-10-08T02:05:00Z", "agent": { "id": "training-web", "name": "training-web" }, "rule": { "id": "31102", "level": 6, "description": "인코딩된 특수문자가 포함된 단일 검색 요청" }, "data": { "srcip": "198.51.100.11", "user": "training-b", "outcome": "review", "count": 1, "indicator": "encoded-query-needs-review" } },
+    { "id": "wi-003", "timestamp": "2026-10-08T02:10:00Z", "agent": { "id": "training-web", "name": "training-web" }, "rule": { "id": "31101", "level": 2, "description": "승인된 자료실 화면 읽기" }, "data": { "srcip": "198.51.100.12", "user": "training-c", "outcome": "allowed", "count": 1, "indicator": "normal-read" } }
+  ]
+}
