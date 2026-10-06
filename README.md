@@ -39,7 +39,9 @@
 
 검색어는 `실습용 가상 [과포아훈]`입니다. 정규식 문자 모임을 써서, 이 README 자신은 검색에 걸리지 않습니다. 메모 네 건이 모두 걸립니다.
 
-1. 현재 배포 파일 (`https://choi-bujang-secret-vault-tr33.vercel.app`는 본인 `https://…vercel.app`): `curl -s https://choi-bujang-secret-vault-tr33.vercel.app/data.json https://choi-bujang-secret-vault-tr33.vercel.app/ https://choi-bujang-secret-vault-tr33.vercel.app/aleph.json | grep -c -E '실습용 가상 [과포아훈]'` 결과가 `0`이어야 합니다. 화면 `/`는 메모를 `/api/notes`에서 받아 그리므로 HTML 파일에는 메모 문장이 없습니다.
+1. 현재 배포 파일 (배포 주소 https://choi-bujang-secret-vault-tr33.vercel.app): 아래 한 줄을 실행합니다. 세 줄 모두 `0`이어야 하고, `curl:`로 시작하는 오류 줄이 하나도 없어야 합니다. 오류 줄이 보이면 접속하지 못한 것이므로 그 `0`은 통과가 아닙니다.
+   `U=https://choi-bujang-secret-vault-tr33.vercel.app; for p in /data.json / /aleph.json; do curl -fsS "$U$p" | grep -c -E '실습용 가상 [과포아훈]'; done`
+   화면 `/`는 메모를 `/api/notes`에서 받아 그리므로 HTML 파일에는 메모 문장이 없습니다.
 2. GitHub 최신 파일: 배포에 쓰는 브랜치(보통 `main`)를 `git fetch origin main` 한 뒤 `git grep -n -E '실습용 가상 [과포아훈]' origin/main`을 실행합니다. 결과가 없어야 합니다. GitHub 저장소 화면의 검색창에서 같은 검색어를 넣어 봐도 됩니다.
 3. 옛 공개 흔적: `git log --all -G'실습용 가상 [과포아훈]' --format='%h %ad %s' --date=short -- data.json public/data.json`. 이 결과는 비어 있지 않은 것이 정상이며, 아래 "남은 약점"의 근거입니다.
 
@@ -48,9 +50,14 @@
 | 대상 | 명령 | 결과 | 실행 여부 |
 | --- | --- | --- | --- |
 | 작업 브랜치 `claude/gallant-tesla-wyxn5s` 최신 파일 | `git grep` (2번 항목 방식) | 메모 문장 없음 | 실행함 (2026-10-06) |
-| `origin/main` 최신 파일 | `git grep` | `data.json`, `public/data.json`에 메모 문장 있음 (2단계 변경이 아직 `main`에 합쳐지지 않음) | 실행함 (2026-10-06) |
+| `origin/main` 최신 파일 | `git grep` | 메모 문장 없음 (PR 합친 뒤 커밋 `9243663`) | 실행함 (2026-10-06) |
 | 옛 커밋 이력 | `git log -G` | `0f9a3c9`(2026-09-26, 시작 틀), `5f21168`(2026-10-06, 삭제 커밋)에서 메모 문장 확인 | 실행함 (2026-10-06) |
 | 현재 배포 파일 | `curl` 1번 항목 | 미실행 (배포 주소와 환경변수 설정 뒤 학생이 실행) | 미실행 |
+
+#### 알려진 문제와 수정
+
+- PR을 `main`에 합친 직후 Vercel 배포가 2건 실패했습니다. 원인은 `scripts/deployment-identity.mjs`가 `step`이 1이 아니면 빌드를 막은 것이며, 수정 커밋 `83de753`이 `step` 1~2를 허용합니다. 이 수정이 `main`에 합쳐져 배포가 `Ready`가 되기 전에는 사이트에 옛 배포(공개 `data.json`)가 남아 있을 수 있습니다. 위 1번의 배포 확인이 그 증거입니다.
+- 빌드 점검: `npm run build -- --local`은 배포 식별 검사를 건너뜁니다. 배포와 같은 조건은 `VERCEL_GIT_PROVIDER=github VERCEL_GIT_REPO_OWNER=<소유자> VERCEL_GIT_REPO_SLUG=<저장소> VERCEL_GIT_COMMIT_SHA=<40자리 커밋> VERCEL_URL=<이름>.vercel.app npm run build`로 확인합니다.
 
 #### 남은 약점
 
