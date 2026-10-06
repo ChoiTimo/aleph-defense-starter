@@ -23,6 +23,7 @@
 가상 메모 네 건은 학습용 Supabase `notes` 테이블에 있고(RLS 켬, anon·authenticated 권한 없음), 공개 `/data.json`은 더 이상 없습니다(404). 화면(`public/index.html`)은 `/api/notes`를 불러 메모를 그립니다. `api/notes.js`는 Vercel 서버 함수이며 `title`, `content`만 돌려줍니다.
 
 - 환경변수 `SUPABASE_URL`, `SUPABASE_SECRET_KEY`의 이름은 [`.env.example`](.env.example)에 값 없이 적어 두었습니다. 값은 Vercel 프로젝트의 Settings > Environment Variables 입력란에 학생이 직접 넣습니다. 이름 앞에 `NEXT_PUBLIC_`를 붙이거나 코드·Git·채팅에 값을 적지 않습니다. 값을 바꾼 뒤에는 다시 배포해야 반영됩니다.
+- `/api/notes`는 `position` 칸 순서로 메모를 돌려줘 원래 자료의 순서(1~4)를 지킵니다. `position` 칸이 없으면 만든 시각·제목 순으로 읽습니다. 순서 값을 넣는 문장은 메모 제목이 들어 있어 Git에 두지 않았습니다.
 - 표 구조·RLS·권한 회수 SQL은 [`sql/2-notes-schema.sql`](sql/2-notes-schema.sql)에 있습니다. 가상 메모 4건을 넣는 문장은 메모 본문이 들어 있어 Git에서 제외했습니다(`supabase/`).
 - SQL Editor 확인 결과(학생이 직접 실행, 2026-10-06): `owner_id` 칸은 `uuid`, 외래키 0개(`auth.users` 연결 없음), RLS 켜짐(`rls_on` true), 메모 4건, anon·authenticated 권한 목록 0행, anon·authenticated 역할로 `notes` 읽기 시도는 `permission denied for table notes`(42501)로 거부됨.
 - 다시 확인: 배포 주소의 `/`에서 카드 네 장이 보이는지, `/data.json`이 열리지 않는지(404) 봅니다. 환경변수가 없으면 `/api/notes`는 `SERVER_NOT_CONFIGURED`(500)를 돌려주고 화면에는 오류 문구만 보입니다.
