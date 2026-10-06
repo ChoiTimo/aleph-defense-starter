@@ -1,6 +1,7 @@
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { deploymentIdentity } from './deployment-identity.mjs';
+import { findSecrets, readFolder } from './secret-scan.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const source = resolve(root, 'data.json');
@@ -22,3 +23,8 @@ if (!process.argv.includes('--local')) {
     `${JSON.stringify(identity, null, 2)}\n`, 'utf8');
   console.log('배포 저장소·커밋·주소를 public/aleph.json에 기록했습니다.');
 }
+const leaked = findSecrets(readFolder(resolve(root, 'public')));
+if (leaked.length) {
+  throw new Error(`공개 폴더에 비밀값으로 보이는 문자열이 있어 배포를 멈춥니다(값은 출력하지 않음):\n${leaked.join('\n')}`);
+}
+console.log('공개 폴더 비밀값 검사를 통과했습니다.');

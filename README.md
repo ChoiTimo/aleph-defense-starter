@@ -23,7 +23,7 @@
 가상 메모 네 건은 학습용 Supabase `notes` 테이블에 있고(RLS 켬, anon·authenticated 권한 없음), 공개 `data.json`의 `notes`는 비어 있습니다. 화면(`public/index.html`)은 `/api/notes`를 불러 메모를 그립니다. `api/notes.js`는 Vercel 서버 함수이며 `title`, `content`만 돌려줍니다.
 
 - 환경변수 `SUPABASE_URL`, `SUPABASE_SECRET_KEY`는 Vercel 프로젝트의 Settings > Environment Variables 입력란에 학생이 직접 넣습니다. 이름 앞에 `NEXT_PUBLIC_`를 붙이거나 코드·Git·채팅에 값을 적지 않습니다. 값을 바꾼 뒤에는 다시 배포해야 반영됩니다.
-- 테이블을 만드는 SQL은 메모 문장이 들어 있어 Git에서 제외했습니다(`supabase/`).
+- 표 구조·RLS·권한 회수 SQL은 [`sql/2-notes-schema.sql`](sql/2-notes-schema.sql)에 있습니다. 가상 메모 4건을 넣는 문장은 메모 본문이 들어 있어 Git에서 제외했습니다(`supabase/`).
 - SQL Editor 확인 결과(학생이 직접 실행, 2026-10-06): `owner_id` 칸은 `uuid`, 외래키 0개(`auth.users` 연결 없음), RLS 켜짐(`rls_on` true), 메모 4건, anon·authenticated 권한 목록 0행, anon·authenticated 역할로 `notes` 읽기 시도는 `permission denied for table notes`(42501)로 거부됨.
 - 다시 확인: 배포 주소의 `/`에서 카드 네 장이 보이는지, `/data.json`에 메모가 없는지 봅니다. 환경변수가 없으면 `/api/notes`는 `SERVER_NOT_CONFIGURED`(500)를 돌려주고 화면에는 오류 문구만 보입니다.
 
@@ -54,6 +54,12 @@
 | `origin/main` 최신 파일 | `git grep` | 메모 문장 없음 (커밋 `c3bcc55` 기준) | 실행함 (2026-10-06) |
 | 옛 커밋 이력 | `git log -G` | `0f9a3c9`(2026-09-26, 시작 틀), `5f21168`(2026-10-06, 삭제 커밋)에서 메모 문장 확인 | 실행함 (2026-10-06) |
 | 현재 배포 파일 | 브라우저로 직접 열어 확인 (학생) | 배포 커밋 `c3bcc55` 기준: `/data.json`은 `{"notes": []}`, `/aleph.json`에 확인 표시 없음, 화면 `/`에 카드 4장, `/api/notes`에 메모 4건과 키 문자열 없음, Production 배포 `Ready` | 학생이 브라우저로 확인함 (2026-10-06 15:22~15:29). 1번 `curl` 명령은 미실행 |
+
+#### 공개 전 비밀값 검사
+
+- `npm run check:secrets`: Git에 올라가는 모든 파일에서 서버 키·JWT·개인키·비밀번호가 든 DB 주소처럼 보이는 문자열을 찾습니다. 찾으면 파일 이름과 종류만 알리고 값은 출력하지 않습니다. 커밋·푸시 전에 실행합니다.
+- `npm run build`(Vercel 배포 빌드)는 공개 폴더 `public/`을 같은 기준으로 검사하고, 걸리면 배포를 멈춥니다.
+- 2026-10-06 실행 결과: 추적 파일 전체에서 키처럼 보이는 문자열 없음. 서버 키는 Vercel 환경변수에만 있습니다.
 
 #### 알려진 문제와 수정
 

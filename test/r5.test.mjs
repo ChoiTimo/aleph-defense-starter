@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { deploymentIdentity } from '../scripts/deployment-identity.mjs';
 import { runAttackChecks } from '../src/attack-check.mjs';
+import { findSecrets } from '../scripts/secret-scan.mjs';
 
 const config = {
   step: 1,
@@ -88,4 +89,17 @@ test('step 2 attack check records only status, counts, marker and key presence',
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test('secret scan finds key-like values without printing them, and ignores explanations', () => {
+  const fake = [
+    ['a', `sb_secret_${'A'.repeat(20)}`],
+    ['b', `eyJ${'a'.repeat(12)}.eyJ${'b'.repeat(12)}.${'c'.repeat(12)}`],
+    ['c', `-----BEGIN ${'PRIVATE KEY'}-----`],
+    ['d', `${'postgres'}://user:pw@host`],
+  ];
+  const found = findSecrets(fake);
+  assert.equal(found.length, 4);
+  assert.ok(found.every(line => !line.includes('AAAA') && !line.includes('aaaa')));
+  assert.deepEqual(findSecrets([['ok', 'sb_secret_… 키는 Vercel에만 둡니다. eyJ로 시작하는 값도 적지 않습니다.']]), []);
 });
