@@ -60,24 +60,31 @@ test('first attack check reads public data.json without credentials', async () =
   }
 });
 
-test('step 2 attack check records only status, counts and key presence', async () => {
+test('step 2 attack check records only status, counts, marker and key presence', async () => {
   const originalFetch = globalThis.fetch;
   const asked = [];
-  try {
+  const run = async (alephBody) => {
     globalThis.fetch = async (url) => {
       const path = new URL(String(url)).pathname;
       asked.push(path);
-      const body = path === '/data.json'
-        ? { sampleMarker: 'SAMPLE_NOTE_1', notes: [] }
-        : { notes: [{ title: '가상', content: '가상 본문' }] };
+      const body = path === '/data.json' ? { notes: [] }
+        : path === '/aleph.json' ? alephBody
+          : { notes: [{ title: '가상', content: '가상 본문' }] };
       return new Response(JSON.stringify(body), { status: 200 });
     };
-    const results = await runAttackChecks({ ...config, step: 2 });
-    assert.deepEqual(asked, ['/data.json', '/api/notes']);
-    assert.deepEqual(results.map(item => item.attackId), ['public_data_json_no_notes', 'anonymous_api_notes_read']);
+    return runAttackChecks({ ...config, step: 2 });
+  };
+  try {
+    const results = await run({ schema: 'aleph.defense.deployment.v1', step: 2 });
+    assert.deepEqual(asked, ['/data.json', '/aleph.json', '/api/notes']);
+    assert.deepEqual(results.map(item => item.attackId),
+      ['public_data_json_no_notes', 'static_marker_absent', 'anonymous_api_notes_read']);
     assert.match(results[0].observed, /0건/u);
-    assert.match(results[1].observed, /HTTP 200, 메모 1건, 키로 보이는 문자열 없음/u);
+    assert.match(results[1].observed, /확인 표시가 보이지 않음/u);
+    assert.match(results[2].observed, /HTTP 200, 메모 1건, 키로 보이는 문자열 없음/u);
     assert.ok(results.every(item => !JSON.stringify(item).includes('가상 본문')));
+    const leaked = await run({ step: 2, sampleMarker: 'SAMPLE_NOTE_1' });
+    assert.match(leaked[1].observed, /확인 표시가 보임: \/aleph\.json/u);
   } finally {
     globalThis.fetch = originalFetch;
   }
