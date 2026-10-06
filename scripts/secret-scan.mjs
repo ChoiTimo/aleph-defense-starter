@@ -1,6 +1,6 @@
 // 공개 전 비밀값 검사입니다. 키처럼 보이는 문자열이 있으면 위치만 알리고 값은 출력하지 않습니다.
 import { execFileSync } from 'node:child_process';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { lstatSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -33,7 +33,8 @@ export function readFolder(folder, base = folder) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const root = resolve(import.meta.dirname, '..');
   const tracked = execFileSync('git', ['-C', root, 'ls-files'], { encoding: 'utf8' })
-    .split('\n').filter((name) => name && name !== 'package-lock.json');
+    .split('\n')
+    .filter((name) => name && name !== 'package-lock.json' && lstatSync(join(root, name)).isFile());
   const found = findSecrets(tracked.map((name) => [name, readFileSync(join(root, name), 'utf8')]));
   if (found.length) {
     console.error(`비밀값으로 보이는 문자열 ${found.length}곳(값은 출력하지 않음):\n${found.join('\n')}`);
