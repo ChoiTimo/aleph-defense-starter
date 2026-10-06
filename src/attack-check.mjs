@@ -45,10 +45,11 @@ async function runStep2Checks(get, marker) {
       // 형식이 맞지 않으면 아래에서 확인 불가로 적습니다.
     }
   }
-  results.push({ attackId: 'public_data_json_no_notes', expected: '비로그인 /data.json에 가상 메모가 없음',
-    observed: dataNotes === null ? `/data.json 형식을 확인하지 못함 (HTTP ${dataResponse.status})`
-      : dataNotes === 0 ? '비로그인 /data.json의 notes가 0건임 (HTTP 200)'
-        : `비로그인 /data.json에 메모 ${dataNotes}건이 보임` });
+  results.push({ attackId: 'public_data_json_no_notes', expected: '비로그인 /data.json에 가상 메모가 없음(파일이 없거나 notes가 비어 있음)',
+    observed: dataResponse.status === 404 ? '비로그인 /data.json이 없음 (HTTP 404)'
+      : dataNotes === null ? `/data.json 형식을 확인하지 못함 (HTTP ${dataResponse.status})`
+        : dataNotes === 0 ? '비로그인 /data.json의 notes가 0건임 (HTTP 200)'
+          : `비로그인 /data.json에 메모 ${dataNotes}건이 보임` });
   const alephResponse = await get('/aleph.json');
   const alephText = await alephResponse.text();
   const markerPaths = [['/data.json', dataText], ['/aleph.json', alephText]]

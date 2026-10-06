@@ -20,28 +20,30 @@
 
 ## 2단계: 자료를 코드 밖으로 옮깁니다
 
-가상 메모 네 건은 학습용 Supabase `notes` 테이블에 있고(RLS 켬, anon·authenticated 권한 없음), 공개 `data.json`의 `notes`는 비어 있습니다. 화면(`public/index.html`)은 `/api/notes`를 불러 메모를 그립니다. `api/notes.js`는 Vercel 서버 함수이며 `title`, `content`만 돌려줍니다.
+가상 메모 네 건은 학습용 Supabase `notes` 테이블에 있고(RLS 켬, anon·authenticated 권한 없음), 공개 `/data.json`은 더 이상 없습니다(404). 화면(`public/index.html`)은 `/api/notes`를 불러 메모를 그립니다. `api/notes.js`는 Vercel 서버 함수이며 `title`, `content`만 돌려줍니다.
 
 - 환경변수 `SUPABASE_URL`, `SUPABASE_SECRET_KEY`의 이름은 [`.env.example`](.env.example)에 값 없이 적어 두었습니다. 값은 Vercel 프로젝트의 Settings > Environment Variables 입력란에 학생이 직접 넣습니다. 이름 앞에 `NEXT_PUBLIC_`를 붙이거나 코드·Git·채팅에 값을 적지 않습니다. 값을 바꾼 뒤에는 다시 배포해야 반영됩니다.
 - 표 구조·RLS·권한 회수 SQL은 [`sql/2-notes-schema.sql`](sql/2-notes-schema.sql)에 있습니다. 가상 메모 4건을 넣는 문장은 메모 본문이 들어 있어 Git에서 제외했습니다(`supabase/`).
 - SQL Editor 확인 결과(학생이 직접 실행, 2026-10-06): `owner_id` 칸은 `uuid`, 외래키 0개(`auth.users` 연결 없음), RLS 켜짐(`rls_on` true), 메모 4건, anon·authenticated 권한 목록 0행, anon·authenticated 역할로 `notes` 읽기 시도는 `permission denied for table notes`(42501)로 거부됨.
-- 다시 확인: 배포 주소의 `/`에서 카드 네 장이 보이는지, `/data.json`에 메모가 없는지 봅니다. 환경변수가 없으면 `/api/notes`는 `SERVER_NOT_CONFIGURED`(500)를 돌려주고 화면에는 오류 문구만 보입니다.
+- 다시 확인: 배포 주소의 `/`에서 카드 네 장이 보이는지, `/data.json`이 열리지 않는지(404) 봅니다. 환경변수가 없으면 `/api/notes`는 `SERVER_NOT_CONFIGURED`(500)를 돌려주고 화면에는 오류 문구만 보입니다.
 
 **아직 남은 약점**: `/api/notes`는 누구나 부를 수 있는 공개 주소입니다. 로그인 확인이 없어서, 주소를 아는 사람은 로그인 없이 같은 메모 네 건을 읽을 수 있습니다. 메모가 `/data.json`에서 빠졌을 뿐 자료 보호는 끝나지 않았습니다. 로그인과 허용 경로는 3단계 이후에 추가합니다.
 
 ### 2단계 저장점: 지금 작동하는 기능과 다시 실행하는 방법
 
-- 작동하는 기능: `/`가 `/api/notes`(서버 함수)로 가상 메모 네 건을 그립니다. `/data.json`의 `notes`는 비어 있습니다. 로그인·허용 경로·원본 API는 아직 없습니다(`identityProvider` null, `allowedRoutes` 빈 배열, `originalApiUrl` null).
+- 작동하는 기능: `/`가 `/api/notes`(서버 함수)로 가상 메모 네 건을 그립니다. `/data.json`은 없습니다(404, 빌드가 2단계부터 복사를 끝냄). 로그인·허용 경로·원본 API는 아직 없습니다(`identityProvider` null, `allowedRoutes` 빈 배열, `originalApiUrl` null).
 - `aleph.config.json`은 `step` 2, `repoUrl`은 Git `origin`과 같은 주소, `publicAppUrl`은 실제 배포 주소입니다. 배포 식별 파일 `/aleph.json`은 2단계부터 확인 표시(`sampleMarker`)를 내보내지 않습니다. `src/decider.mjs`의 `RULE_IDS`는 시작점 규칙 `starter.deny`(모두 거부) 하나뿐이며 6단계 전까지 늘리지 않습니다.
+- `npm run bundle`은 **마지막 커밋의 바뀐 파일**을 읽으므로, PR을 합친 병합 커밋 위에서는 "마지막 커밋에 바뀐 파일이 없습니다" 오류가 납니다. 병합 커밋이 아닌 일반 커밋 위에서 실행합니다(예: 작업 브랜치 끝, 합치기 전). 시작 틀의 `scripts/bundle.mjs`는 고치지 않았습니다.
 - 다시 실행: `npm run test:r5`(로컬 시험), `npm run build -- --local`(로컬 빌드), 변경 커밋 뒤 `npm run bundle`(제출 묶음 `artifacts/submission.json` 생성, 커밋하지 않음). `bundle`은 `bundle-notes.json`의 `explanation`이 필요하며 이 파일도 커밋하지 않습니다.
-- `src/attack-check.mjs`의 2단계 점검은 배포 주소로 비로그인 `GET /data.json`, `GET /aleph.json`, `GET /api/notes`를 실제로 보내고 상태·건수·시작 틀 확인 표시 유무·키 문자열 유무만 기록합니다. 심판의 판정이 아닙니다. 배포 주소가 없으면 실행하지 않은 점검으로 남습니다.
+- `src/attack-check.mjs`의 2단계 점검은 배포 주소로 비로그인 `GET /data.json`, `GET /aleph.json`, `GET /api/notes`를 실제로 보내고 상태(`/data.json`은 404가 정상)·건수·시작 틀 확인 표시 유무·키 문자열 유무만 기록합니다. 심판의 판정이 아닙니다. 배포 주소가 없으면 실행하지 않은 점검으로 남습니다.
 
 ### 2단계 확인 절차: 가상 메모 문장 검색
 
 검색어는 `실습용 가상 [과포아훈]`입니다. 정규식 문자 모임을 써서, 이 README 자신은 검색에 걸리지 않습니다. 메모 네 건이 모두 걸립니다.
 
-1. 현재 배포 파일 (배포 주소 https://choi-bujang-secret-vault-tr33.vercel.app): 아래 한 줄을 실행합니다. 세 줄 모두 `0`이어야 하고, `curl:`로 시작하는 오류 줄이 하나도 없어야 합니다. 오류 줄이 보이면 접속하지 못한 것이므로 그 `0`은 통과가 아닙니다.
-   `U=https://choi-bujang-secret-vault-tr33.vercel.app; for p in /data.json / /aleph.json; do curl -fsS "$U$p" | grep -c -E '실습용 가상 [과포아훈]'; done`
+1. 현재 배포 파일 (배포 주소 https://choi-bujang-secret-vault-tr33.vercel.app): 아래 한 줄을 실행합니다. `curl:`로 시작하는 오류 줄이 있으면 접속하지 못한 것이므로 그 결과는 통과가 아닙니다. 오류 줄이 보이면 접속하지 못한 것이므로 그 `0`은 통과가 아닙니다.
+   `U=https://choi-bujang-secret-vault-tr33.vercel.app; curl -s -o /dev/null -w "/data.json HTTP %{http_code}\n" "$U/data.json"; for p in / /aleph.json; do curl -fsS "$U$p" | grep -c -E '실습용 가상 [과포아훈]'; done`
+   `/data.json`은 `HTTP 404`여야 하고, 나머지 두 줄은 `0`이어야 합니다.
    화면 `/`는 메모를 `/api/notes`에서 받아 그리므로 HTML 파일에는 메모 문장이 없습니다.
 2. GitHub 최신 파일: 배포에 쓰는 브랜치(보통 `main`)를 `git fetch origin main` 한 뒤 `git grep -n -E '실습용 가상 [과포아훈]' origin/main`을 실행합니다. 결과가 없어야 합니다. GitHub 저장소 화면의 검색창에서 같은 검색어를 넣어 봐도 됩니다.
 3. 옛 공개 흔적: `git log --all -G'실습용 가상 [과포아훈]' --format='%h %ad %s' --date=short -- data.json public/data.json`. 이 결과는 비어 있지 않은 것이 정상이며, 아래 "남은 약점"의 근거입니다.
@@ -53,7 +55,7 @@
 | 작업 브랜치 `claude/gallant-tesla-wyxn5s` 최신 파일 | `git grep` (2번 항목 방식) | 메모 문장 없음 | 실행함 (2026-10-06) |
 | `origin/main` 최신 파일 | `git grep` | 메모 문장 없음 (커밋 `c3bcc55` 기준) | 실행함 (2026-10-06) |
 | 옛 커밋 이력 | `git log -G` | `0f9a3c9`(2026-09-26, 시작 틀), `5f21168`(2026-10-06, 삭제 커밋)에서 메모 문장 확인 | 실행함 (2026-10-06) |
-| 현재 배포 파일 | 브라우저로 직접 열어 확인 (학생) | 배포 커밋 `c3bcc55` 기준: `/data.json`은 `{"notes": []}`, `/aleph.json`에 확인 표시 없음, 화면 `/`에 카드 4장, `/api/notes`에 메모 4건과 키 문자열 없음, Production 배포 `Ready` | 학생이 브라우저로 확인함 (2026-10-06 15:22~15:29). 1번 `curl` 명령은 미실행 |
+| 현재 배포 파일 | 브라우저로 직접 열어 확인 (학생) | 배포 커밋 `c3bcc55` 기준(이후 `data.json` 복사를 끝내 지금은 404): `/data.json`은 `{"notes": []}`, `/aleph.json`에 확인 표시 없음, 화면 `/`에 카드 4장, `/api/notes`에 메모 4건과 키 문자열 없음, Production 배포 `Ready` | 학생이 브라우저로 확인함 (2026-10-06 15:22~15:29). 1번 `curl` 명령은 미실행 |
 
 #### 공개 전 비밀값 검사
 
@@ -62,6 +64,8 @@
 - 2026-10-06 실행 결과: 추적 파일 전체에서 키처럼 보이는 문자열 없음. 서버 키는 Vercel 환경변수에만 있습니다.
 
 #### 알려진 문제와 수정
+
+- 2단계 빌드는 `data.json` 복사를 끝냅니다(`scripts/build-public.mjs`는 `step` 1에서만 복사). 시작 틀의 오류 문구 "1단계 이후에는 공개 data.json 복사를 끝내고 보호된 자료 API로 바꾸세요"를 따른 것이며, 저장소의 `data.json`, `public/data.json`은 지웠습니다. 문제가 생기면 이 변경 PR 하나를 Revert 하면 원상복구됩니다.
 
 - PR을 `main`에 합친 직후 Vercel 배포가 2건 실패했습니다. 원인은 `scripts/deployment-identity.mjs`가 `step`이 1이 아니면 빌드를 막은 것이며, 수정 커밋 `83de753`이 `step` 1~2를 허용합니다. 이 수정이 `main`에 합쳐져 배포가 `Ready`가 되기 전에는 사이트에 옛 배포(공개 `data.json`)가 남아 있을 수 있습니다. 위 1번의 배포 확인이 그 증거입니다.
 - `public/aleph.json`(배포 식별 파일)은 2단계부터 시작 틀 확인 표시(`sampleMarker`)를 내보내지 않습니다. 심판 판정 `S02_MARKER_IN_STATIC`이 정적 응답의 표시를 지적했기 때문입니다. 1단계는 이전과 같습니다.
