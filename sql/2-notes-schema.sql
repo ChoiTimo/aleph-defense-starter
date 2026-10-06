@@ -5,10 +5,14 @@
 create table if not exists public.notes (
   id         uuid primary key default gen_random_uuid(),
   owner_id   uuid,  -- 3단계 로그인에서 채울 칸. auth.users 외래키는 걸지 않습니다.
+  position   int,   -- 화면에 보이는 순서(1, 2, 3, 4). 원래 자료의 순서를 지킵니다.
   title      text not null,
   content    text not null,
   created_at timestamptz not null default now()
 );
+
+-- 이미 만든 표에는 칸만 더합니다(새로 만들 때는 위에 포함됨).
+alter table public.notes add column if not exists position int;
 
 -- RLS를 켜고 정책은 만들지 않습니다. 정책이 없으면 anon·authenticated는 읽을 수 없습니다.
 alter table public.notes enable row level security;
