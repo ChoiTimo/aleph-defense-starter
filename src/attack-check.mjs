@@ -60,6 +60,6 @@ async function runStep2Checks(get, config) {
   const keyLike = /\bsb_secret_|\beyJ[A-Za-z0-9_-]{12,}\.|-----BEGIN /u.test(apiText);
   results.push({ attackId: 'anonymous_api_notes_read',
     expected: '비로그인 /api/notes 응답에 키 값이 없음. 로그인 없는 읽기는 3단계에서 막을 약점으로 기록',
-    observed: `HTTP ${apiResponse.status}, 메모 ${apiNotes ?? '확인 불가'}건, 키로 보이는 문자열 ${keyLike ? '있음' : '없음'}` });
+    observed: `HTTP ${apiResponse.status}, ${apiNotes === null ? '메모 건수 확인 불가' : `메모 ${apiNotes}건`}, 키로 보이는 문자열 ${keyLike ? '있음' : '없음'}` });
   return results;
 }
