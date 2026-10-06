@@ -39,7 +39,7 @@
 
 검색어는 `실습용 가상 [과포아훈]`입니다. 정규식 문자 모임을 써서, 이 README 자신은 검색에 걸리지 않습니다. 메모 네 건이 모두 걸립니다.
 
-1. 현재 배포 파일 (`<배포주소>`는 본인 `https://…vercel.app`): `curl -s <배포주소>/data.json <배포주소>/ <배포주소>/aleph.json | grep -c -E '실습용 가상 [과포아훈]'` 결과가 `0`이어야 합니다. 화면 `/`는 메모를 `/api/notes`에서 받아 그리므로 HTML 파일에는 메모 문장이 없습니다.
+1. 현재 배포 파일 (`https://choi-bujang-secret-vault-tr33.vercel.app`는 본인 `https://…vercel.app`): `curl -s https://choi-bujang-secret-vault-tr33.vercel.app/data.json https://choi-bujang-secret-vault-tr33.vercel.app/ https://choi-bujang-secret-vault-tr33.vercel.app/aleph.json | grep -c -E '실습용 가상 [과포아훈]'` 결과가 `0`이어야 합니다. 화면 `/`는 메모를 `/api/notes`에서 받아 그리므로 HTML 파일에는 메모 문장이 없습니다.
 2. GitHub 최신 파일: 배포에 쓰는 브랜치(보통 `main`)를 `git fetch origin main` 한 뒤 `git grep -n -E '실습용 가상 [과포아훈]' origin/main`을 실행합니다. 결과가 없어야 합니다. GitHub 저장소 화면의 검색창에서 같은 검색어를 넣어 봐도 됩니다.
 3. 옛 공개 흔적: `git log --all -G'실습용 가상 [과포아훈]' --format='%h %ad %s' --date=short -- data.json public/data.json`. 이 결과는 비어 있지 않은 것이 정상이며, 아래 "남은 약점"의 근거입니다.
 
