@@ -33,6 +33,7 @@
 
 - 작동하는 기능: `/`가 `/api/notes`(서버 함수)로 가상 메모 네 건을 그립니다. `/data.json`의 `notes`는 비어 있습니다. 로그인·허용 경로·원본 API는 아직 없습니다(`identityProvider` null, `allowedRoutes` 빈 배열, `originalApiUrl` null).
 - `aleph.config.json`은 `step` 2, `repoUrl`은 Git `origin`과 같은 주소, `publicAppUrl`은 실제 배포 주소입니다. 배포 식별 파일 `/aleph.json`은 2단계부터 확인 표시(`sampleMarker`)를 내보내지 않습니다. `src/decider.mjs`의 `RULE_IDS`는 시작점 규칙 `starter.deny`(모두 거부) 하나뿐이며 6단계 전까지 늘리지 않습니다.
+- `npm run bundle`은 **마지막 커밋의 바뀐 파일**을 읽으므로, PR을 합친 병합 커밋 위에서는 "마지막 커밋에 바뀐 파일이 없습니다" 오류가 납니다. 병합 커밋이 아닌 일반 커밋 위에서 실행합니다(예: 작업 브랜치 끝, 합치기 전). 시작 틀의 `scripts/bundle.mjs`는 고치지 않았습니다.
 - 다시 실행: `npm run test:r5`(로컬 시험), `npm run build -- --local`(로컬 빌드), 변경 커밋 뒤 `npm run bundle`(제출 묶음 `artifacts/submission.json` 생성, 커밋하지 않음). `bundle`은 `bundle-notes.json`의 `explanation`이 필요하며 이 파일도 커밋하지 않습니다.
 - `src/attack-check.mjs`의 2단계 점검은 배포 주소로 비로그인 `GET /data.json`, `GET /aleph.json`, `GET /api/notes`를 실제로 보내고 상태·건수·시작 틀 확인 표시 유무·키 문자열 유무만 기록합니다. 심판의 판정이 아닙니다. 배포 주소가 없으면 실행하지 않은 점검으로 남습니다.
 
