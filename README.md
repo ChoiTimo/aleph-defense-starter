@@ -18,6 +18,16 @@
 
 로컬에서 가상 화면만 확인할 때는 `npm run build -- --local`을 사용합니다. 로컬 실행은 Vercel 배포나 심판 접수를 증명하지 않습니다. 저장소의 `src/attack-check.mjs`는 실제 배포가 된 뒤 `/data.json`을 비로그인으로 요청해 공개 가상 메모의 확인 표시를 읽습니다.
 
+## 2단계: 자료를 코드 밖으로 옮깁니다
+
+가상 메모 네 건은 학습용 Supabase `notes` 테이블에 있고(RLS 켬, anon·authenticated 권한 없음), 공개 `data.json`의 `notes`는 비어 있습니다. 화면(`public/index.html`)은 `/api/notes`를 불러 메모를 그립니다. `api/notes.js`는 Vercel 서버 함수이며 `title`, `content`만 돌려줍니다.
+
+- 환경변수 `SUPABASE_URL`, `SUPABASE_SECRET_KEY`는 Vercel 프로젝트의 Settings > Environment Variables 입력란에 학생이 직접 넣습니다. 이름 앞에 `NEXT_PUBLIC_`를 붙이거나 코드·Git·채팅에 값을 적지 않습니다. 값을 바꾼 뒤에는 다시 배포해야 반영됩니다.
+- 테이블을 만드는 SQL은 메모 문장이 들어 있어 Git에서 제외했습니다(`supabase/`).
+- 다시 확인: 배포 주소의 `/`에서 카드 네 장이 보이는지, `/data.json`에 메모가 없는지 봅니다. 환경변수가 없으면 `/api/notes`는 `SERVER_NOT_CONFIGURED`(500)를 돌려주고 화면에는 오류 문구만 보입니다.
+
+**아직 남은 약점**: `/api/notes`는 누구나 부를 수 있는 공개 주소입니다. 로그인 확인이 없어서, 주소를 아는 사람은 로그인 없이 같은 메모 네 건을 읽을 수 있습니다. 메모가 `/data.json`에서 빠졌을 뿐 자료 보호는 끝나지 않았습니다. 로그인과 허용 경로는 3단계 이후에 추가합니다.
+
 ## 다음 단계의 코딩 도구에 전달할 규칙
 
 [AGENTS.md](AGENTS.md)를 먼저 읽히고 한 번에 한 제작 단위만 요청하세요. 2단계부터는 자료 보호를 구현할 때 `public/data.json`을 복사하는 1단계 빌드 흐름도 함께 바꿔야 합니다. 3단계 이후의 로그인, 허용 경로, 5단계의 원본 API 주소, 6단계 이후 정책 규칙은 해당 단계 원고와 계약에 맞춰 추가합니다. 비밀번호·토큰·서버 전용 키·실제 학생 기록을 코드, Git, 제출 묶음에 넣지 않습니다.
