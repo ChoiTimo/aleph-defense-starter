@@ -27,7 +27,9 @@ test('build identity uses Vercel Git and deployment metadata', () => {
     judgeIssuer: config.judgeIssuer,
     sampleMarker: config.sampleMarker,
   });
-  assert.equal(deploymentIdentity(env, { ...config, step: 2 }).step, 2);
+  const step2 = deploymentIdentity(env, { ...config, step: 2 });
+  assert.equal(step2.step, 2);
+  assert.equal('sampleMarker' in step2, false);
   assert.throws(() => deploymentIdentity(env, { ...config, step: 3 }));
   assert.throws(() => deploymentIdentity({ ...env, VERCEL_GIT_PROVIDER: undefined }, config));
   assert.throws(() => deploymentIdentity({ ...env, VERCEL_GIT_COMMIT_SHA: 'short' }, config));
