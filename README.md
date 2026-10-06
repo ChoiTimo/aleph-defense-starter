@@ -8,15 +8,15 @@
 2. 방어전 1단계 카드의 **Deploy** 버튼을 누릅니다. Vercel에 GitHub로 로그인하고, 새 저장소가 **본인 계정의 Public 저장소**인지 확인한 뒤 Deploy를 누릅니다.
 3. 배포가 끝나면 화면에 나온 `https://…vercel.app` 주소를 방어전 1단계 카드에 붙여넣고 제출합니다. 저장소 주소나 설정 파일은 적지 않습니다.
 
-배포가 끝나면 `/`에서 점령된 가상 자료실을 볼 수 있습니다. `/data.json`에는 같은 가상 메모가 공개됩니다. 이 공개 상태를 확인하는 것이 1단계의 출발점입니다. 1단계 접수와 심판 판정은 포털에서 확인합니다.
+(1단계 당시 기록) 배포가 끝나면 `/`에서 점령된 가상 자료실을 볼 수 있고, `/data.json`에 같은 가상 메모가 공개되었습니다. 이 공개 상태를 확인하는 것이 1단계의 출발점이었습니다. 2단계 이후의 현재 상태는 아래 "2단계" 절을 보세요. 1단계 접수와 심판 판정은 포털에서 확인합니다.
 
 ## 시작 틀의 자동 처리
 
 `vercel.json`은 정적 결과물 `public`을 배포합니다. 빌드 명령 `npm run build`는 Vercel이 제공하는 GitHub 저장소 소유자·이름, 커밋 SHA, 배포 URL을 검증하고 `public/aleph.json`을 생성합니다. 이 값이 없으면 빌드가 실패하므로, 성공한 것처럼 빈 주소를 내보내지 않습니다. `aleph.json`의 내용만으로 저장소 소유권이나 방어 성공을 인정하지 않습니다. 심판이 공개 저장소의 실제 커밋과 배포된 자료를 따로 대조해야 합니다.
 
-`aleph.config.json`의 `repoUrl`은 2단계 저장점에서 Git `origin` 주소로 맞췄습니다. `publicAppUrl`은 아직 자리표시자이며, 학생이 본인 `https://…vercel.app` 주소를 직접 넣어야 `npm run bundle`의 점검이 실행됩니다. `judgeIssuer`는 운영 측이 채운 값이므로 바꾸지 않습니다. `npm run bundle`과 `bundle-notes.json`도 1단계의 세 걸음에는 포함되지 않습니다.
+`aleph.config.json`의 `repoUrl`은 2단계 저장점에서 Git `origin` 주소로 맞췄습니다. `publicAppUrl`에는 실제 배포 주소 `https://choi-bujang-secret-vault-tr33.vercel.app`을 넣었습니다. `judgeIssuer`는 운영 측이 채운 값이므로 바꾸지 않습니다. `npm run bundle`과 `bundle-notes.json`도 1단계의 세 걸음에는 포함되지 않습니다.
 
-로컬에서 가상 화면만 확인할 때는 `npm run build -- --local`을 사용합니다. 로컬 실행은 Vercel 배포나 심판 접수를 증명하지 않습니다. 저장소의 `src/attack-check.mjs`는 실제 배포가 된 뒤 `/data.json`을 비로그인으로 요청해 공개 가상 메모의 확인 표시를 읽습니다.
+로컬에서 가상 화면만 확인할 때는 `npm run build -- --local`을 사용합니다. 로컬 실행은 Vercel 배포나 심판 접수를 증명하지 않습니다. `src/attack-check.mjs`의 1단계 점검은 `/data.json`을 비로그인으로 요청해 공개 가상 메모의 확인 표시를 읽었습니다. 2단계 점검은 아래 "2단계 저장점"에 적었습니다.
 
 ## 2단계: 자료를 코드 밖으로 옮깁니다
 
@@ -24,6 +24,7 @@
 
 - 환경변수 `SUPABASE_URL`, `SUPABASE_SECRET_KEY`는 Vercel 프로젝트의 Settings > Environment Variables 입력란에 학생이 직접 넣습니다. 이름 앞에 `NEXT_PUBLIC_`를 붙이거나 코드·Git·채팅에 값을 적지 않습니다. 값을 바꾼 뒤에는 다시 배포해야 반영됩니다.
 - 테이블을 만드는 SQL은 메모 문장이 들어 있어 Git에서 제외했습니다(`supabase/`).
+- SQL Editor 확인 결과(학생이 직접 실행, 2026-10-06): `owner_id` 칸은 `uuid`, 외래키 0개(`auth.users` 연결 없음), RLS 켜짐(`rls_on` true), 메모 4건, anon·authenticated 권한 목록 0행, anon·authenticated 역할로 `notes` 읽기 시도는 `permission denied for table notes`(42501)로 거부됨.
 - 다시 확인: 배포 주소의 `/`에서 카드 네 장이 보이는지, `/data.json`에 메모가 없는지 봅니다. 환경변수가 없으면 `/api/notes`는 `SERVER_NOT_CONFIGURED`(500)를 돌려주고 화면에는 오류 문구만 보입니다.
 
 **아직 남은 약점**: `/api/notes`는 누구나 부를 수 있는 공개 주소입니다. 로그인 확인이 없어서, 주소를 아는 사람은 로그인 없이 같은 메모 네 건을 읽을 수 있습니다. 메모가 `/data.json`에서 빠졌을 뿐 자료 보호는 끝나지 않았습니다. 로그인과 허용 경로는 3단계 이후에 추가합니다.
@@ -31,9 +32,9 @@
 ### 2단계 저장점: 지금 작동하는 기능과 다시 실행하는 방법
 
 - 작동하는 기능: `/`가 `/api/notes`(서버 함수)로 가상 메모 네 건을 그립니다. `/data.json`의 `notes`는 비어 있습니다. 로그인·허용 경로·원본 API는 아직 없습니다(`identityProvider` null, `allowedRoutes` 빈 배열, `originalApiUrl` null).
-- `aleph.config.json`은 `step` 2, `repoUrl`은 Git `origin`과 같은 주소입니다. `src/decider.mjs`의 `RULE_IDS`는 시작점 규칙 `starter.deny`(모두 거부) 하나뿐이며 6단계 전까지 늘리지 않습니다.
+- `aleph.config.json`은 `step` 2, `repoUrl`은 Git `origin`과 같은 주소, `publicAppUrl`은 실제 배포 주소입니다. 배포 식별 파일 `/aleph.json`은 2단계부터 확인 표시(`sampleMarker`)를 내보내지 않습니다. `src/decider.mjs`의 `RULE_IDS`는 시작점 규칙 `starter.deny`(모두 거부) 하나뿐이며 6단계 전까지 늘리지 않습니다.
 - 다시 실행: `npm run test:r5`(로컬 시험), `npm run build -- --local`(로컬 빌드), 변경 커밋 뒤 `npm run bundle`(제출 묶음 `artifacts/submission.json` 생성, 커밋하지 않음). `bundle`은 `bundle-notes.json`의 `explanation`이 필요하며 이 파일도 커밋하지 않습니다.
-- `src/attack-check.mjs`의 2단계 점검은 배포 주소로 비로그인 `GET /data.json`, `GET /api/notes`를 실제로 보내고 상태·건수·키 문자열 유무만 기록합니다. 심판의 판정이 아닙니다. 배포 주소가 없으면 실행하지 않은 점검으로 남습니다.
+- `src/attack-check.mjs`의 2단계 점검은 배포 주소로 비로그인 `GET /data.json`, `GET /aleph.json`, `GET /api/notes`를 실제로 보내고 상태·건수·시작 틀 확인 표시 유무·키 문자열 유무만 기록합니다. 심판의 판정이 아닙니다. 배포 주소가 없으면 실행하지 않은 점검으로 남습니다.
 
 ### 2단계 확인 절차: 가상 메모 문장 검색
 
@@ -50,20 +51,22 @@
 | 대상 | 명령 | 결과 | 실행 여부 |
 | --- | --- | --- | --- |
 | 작업 브랜치 `claude/gallant-tesla-wyxn5s` 최신 파일 | `git grep` (2번 항목 방식) | 메모 문장 없음 | 실행함 (2026-10-06) |
-| `origin/main` 최신 파일 | `git grep` | 메모 문장 없음 (PR 합친 뒤 커밋 `9243663`) | 실행함 (2026-10-06) |
+| `origin/main` 최신 파일 | `git grep` | 메모 문장 없음 (커밋 `c3bcc55` 기준) | 실행함 (2026-10-06) |
 | 옛 커밋 이력 | `git log -G` | `0f9a3c9`(2026-09-26, 시작 틀), `5f21168`(2026-10-06, 삭제 커밋)에서 메모 문장 확인 | 실행함 (2026-10-06) |
-| 현재 배포 파일 | 브라우저로 직접 열어 확인 (학생) | `/data.json`의 `notes`가 비어 있음, `/api/notes`에 메모 4건과 키 문자열 없음, Production 배포 `Ready`. 확인 당시 `/data.json`에 `sampleMarker` 줄이 남아 있었고 이 줄은 PR #3에서 제거함 | 학생이 브라우저로 확인함 (2026-10-06). 1번 `curl` 명령은 미실행 |
+| 현재 배포 파일 | 브라우저로 직접 열어 확인 (학생) | 배포 커밋 `c3bcc55` 기준: `/data.json`은 `{"notes": []}`, `/aleph.json`에 확인 표시 없음, 화면 `/`에 카드 4장, `/api/notes`에 메모 4건과 키 문자열 없음, Production 배포 `Ready` | 학생이 브라우저로 확인함 (2026-10-06 15:22~15:29). 1번 `curl` 명령은 미실행 |
 
 #### 알려진 문제와 수정
 
 - PR을 `main`에 합친 직후 Vercel 배포가 2건 실패했습니다. 원인은 `scripts/deployment-identity.mjs`가 `step`이 1이 아니면 빌드를 막은 것이며, 수정 커밋 `83de753`이 `step` 1~2를 허용합니다. 이 수정이 `main`에 합쳐져 배포가 `Ready`가 되기 전에는 사이트에 옛 배포(공개 `data.json`)가 남아 있을 수 있습니다. 위 1번의 배포 확인이 그 증거입니다.
 - `public/aleph.json`(배포 식별 파일)은 2단계부터 시작 틀 확인 표시(`sampleMarker`)를 내보내지 않습니다. 심판 판정 `S02_MARKER_IN_STATIC`이 정적 응답의 표시를 지적했기 때문입니다. 1단계는 이전과 같습니다.
+- `npm run test:package` 1건(패키징 함수 기준표 일치)은 실패합니다. 원래 시작 틀에서는 통과했지만, 2단계 제작 2가 만든 `api/notes.js`가 운영 쪽 고정 기준표(`package/baseline-functions.json`)에 없기 때문입니다. 기준표는 운영 쪽 파일이라 고치지 않았습니다.
 - 빌드 점검: `npm run build -- --local`은 배포 식별 검사를 건너뜁니다. 배포와 같은 조건은 `VERCEL_GIT_PROVIDER=github VERCEL_GIT_REPO_OWNER=<소유자> VERCEL_GIT_REPO_SLUG=<저장소> VERCEL_GIT_COMMIT_SHA=<40자리 커밋> VERCEL_URL=<이름>.vercel.app npm run build`로 확인합니다.
 
 #### 남은 약점
 
 - **과거 노출은 해소되지 않았습니다.** 옛 공개 커밋 `0f9a3c9` 등에 메모 문장이 Git 이력으로 남아 있고, 옛 배포(이전 Vercel 배포와 그 `/data.json`)도 남아 있을 수 있습니다. 최신 파일에서 메모를 지운 것은 이후 노출을 줄일 뿐, 이미 공개된 것을 되돌리지 못합니다. 이력을 지우거나 옛 배포를 삭제하기 전까지 "과거 노출 해소"라고 쓰지 않습니다. (메모는 가상 자료입니다. 실제 자료였다면 이력 정리와 옛 배포 삭제가 필요합니다.)
 - **공개 API의 약점이 남아 있습니다.** `/api/notes`는 로그인 없이 누구나 부를 수 있어서 같은 메모 네 건을 읽을 수 있습니다. 검색에서 메모가 안 나와도 이 API로는 읽힙니다. 3단계 이후에 막습니다.
+- **공개 API에 호출 횟수 제한이 없습니다.** 같은 주소를 계속 호출하면 학습용 DB의 무료 사용량을 소모시킬 수 있습니다.
 - **검색은 파일 내용만 봅니다.** 다른 표현이나 글자를 바꾼 사본, 캐시, 제3자가 이미 복사한 자료는 이 검색으로 찾을 수 없습니다.
 
 ## 다음 단계의 코딩 도구에 전달할 규칙
