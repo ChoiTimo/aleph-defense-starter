@@ -14,9 +14,49 @@
 
 `vercel.json`은 정적 결과물 `public`을 배포합니다. 빌드 명령 `npm run build`는 Vercel이 제공하는 GitHub 저장소 소유자·이름, 커밋 SHA, 배포 URL을 검증하고 `public/aleph.json`을 생성합니다. 이 값이 없으면 빌드가 실패하므로, 성공한 것처럼 빈 주소를 내보내지 않습니다. `aleph.json`의 내용만으로 저장소 소유권이나 방어 성공을 인정하지 않습니다. 심판이 공개 저장소의 실제 커밋과 배포된 자료를 따로 대조해야 합니다.
 
-`aleph.config.json`의 `repoUrl`과 `publicAppUrl`은 이전 제출 묶음 방식의 자리표시자입니다. 1단계에서는 학생이 편집하지 않습니다. 2단계 이후 코딩 도구가 필요한 설정과 보호 기능을 단계별로 작성합니다. `npm run bundle`과 `bundle-notes.json`도 1단계의 세 걸음에는 포함되지 않습니다.
+`aleph.config.json`의 `repoUrl`은 2단계 저장점에서 Git `origin` 주소로 맞췄습니다. `publicAppUrl`은 아직 자리표시자이며, 학생이 본인 `https://…vercel.app` 주소를 직접 넣어야 `npm run bundle`의 점검이 실행됩니다. `judgeIssuer`는 운영 측이 채운 값이므로 바꾸지 않습니다. `npm run bundle`과 `bundle-notes.json`도 1단계의 세 걸음에는 포함되지 않습니다.
 
 로컬에서 가상 화면만 확인할 때는 `npm run build -- --local`을 사용합니다. 로컬 실행은 Vercel 배포나 심판 접수를 증명하지 않습니다. 저장소의 `src/attack-check.mjs`는 실제 배포가 된 뒤 `/data.json`을 비로그인으로 요청해 공개 가상 메모의 확인 표시를 읽습니다.
+
+## 2단계: 자료를 코드 밖으로 옮깁니다
+
+가상 메모 네 건은 학습용 Supabase `notes` 테이블에 있고(RLS 켬, anon·authenticated 권한 없음), 공개 `data.json`의 `notes`는 비어 있습니다. 화면(`public/index.html`)은 `/api/notes`를 불러 메모를 그립니다. `api/notes.js`는 Vercel 서버 함수이며 `title`, `content`만 돌려줍니다.
+
+- 환경변수 `SUPABASE_URL`, `SUPABASE_SECRET_KEY`는 Vercel 프로젝트의 Settings > Environment Variables 입력란에 학생이 직접 넣습니다. 이름 앞에 `NEXT_PUBLIC_`를 붙이거나 코드·Git·채팅에 값을 적지 않습니다. 값을 바꾼 뒤에는 다시 배포해야 반영됩니다.
+- 테이블을 만드는 SQL은 메모 문장이 들어 있어 Git에서 제외했습니다(`supabase/`).
+- 다시 확인: 배포 주소의 `/`에서 카드 네 장이 보이는지, `/data.json`에 메모가 없는지 봅니다. 환경변수가 없으면 `/api/notes`는 `SERVER_NOT_CONFIGURED`(500)를 돌려주고 화면에는 오류 문구만 보입니다.
+
+**아직 남은 약점**: `/api/notes`는 누구나 부를 수 있는 공개 주소입니다. 로그인 확인이 없어서, 주소를 아는 사람은 로그인 없이 같은 메모 네 건을 읽을 수 있습니다. 메모가 `/data.json`에서 빠졌을 뿐 자료 보호는 끝나지 않았습니다. 로그인과 허용 경로는 3단계 이후에 추가합니다.
+
+### 2단계 저장점: 지금 작동하는 기능과 다시 실행하는 방법
+
+- 작동하는 기능: `/`가 `/api/notes`(서버 함수)로 가상 메모 네 건을 그립니다. `/data.json`의 `notes`는 비어 있습니다. 로그인·허용 경로·원본 API는 아직 없습니다(`identityProvider` null, `allowedRoutes` 빈 배열, `originalApiUrl` null).
+- `aleph.config.json`은 `step` 2, `repoUrl`은 Git `origin`과 같은 주소입니다. `src/decider.mjs`의 `RULE_IDS`는 시작점 규칙 `starter.deny`(모두 거부) 하나뿐이며 6단계 전까지 늘리지 않습니다.
+- 다시 실행: `npm run test:r5`(로컬 시험), `npm run build -- --local`(로컬 빌드), 변경 커밋 뒤 `npm run bundle`(제출 묶음 `artifacts/submission.json` 생성, 커밋하지 않음). `bundle`은 `bundle-notes.json`의 `explanation`이 필요하며 이 파일도 커밋하지 않습니다.
+- `src/attack-check.mjs`의 2단계 점검은 배포 주소로 비로그인 `GET /data.json`, `GET /api/notes`를 실제로 보내고 상태·건수·키 문자열 유무만 기록합니다. 심판의 판정이 아닙니다. 배포 주소가 없으면 실행하지 않은 점검으로 남습니다.
+
+### 2단계 확인 절차: 가상 메모 문장 검색
+
+검색어는 `실습용 가상 [과포아훈]`입니다. 정규식 문자 모임을 써서, 이 README 자신은 검색에 걸리지 않습니다. 메모 네 건이 모두 걸립니다.
+
+1. 현재 배포 파일 (`https://choi-bujang-secret-vault-tr33.vercel.app`는 본인 `https://…vercel.app`): `curl -s https://choi-bujang-secret-vault-tr33.vercel.app/data.json https://choi-bujang-secret-vault-tr33.vercel.app/ https://choi-bujang-secret-vault-tr33.vercel.app/aleph.json | grep -c -E '실습용 가상 [과포아훈]'` 결과가 `0`이어야 합니다. 화면 `/`는 메모를 `/api/notes`에서 받아 그리므로 HTML 파일에는 메모 문장이 없습니다.
+2. GitHub 최신 파일: 배포에 쓰는 브랜치(보통 `main`)를 `git fetch origin main` 한 뒤 `git grep -n -E '실습용 가상 [과포아훈]' origin/main`을 실행합니다. 결과가 없어야 합니다. GitHub 저장소 화면의 검색창에서 같은 검색어를 넣어 봐도 됩니다.
+3. 옛 공개 흔적: `git log --all -G'실습용 가상 [과포아훈]' --format='%h %ad %s' --date=short -- data.json public/data.json`. 이 결과는 비어 있지 않은 것이 정상이며, 아래 "남은 약점"의 근거입니다.
+
+#### 검색 결과 기록
+
+| 대상 | 명령 | 결과 | 실행 여부 |
+| --- | --- | --- | --- |
+| 작업 브랜치 `claude/gallant-tesla-wyxn5s` 최신 파일 | `git grep` (2번 항목 방식) | 메모 문장 없음 | 실행함 (2026-10-06) |
+| `origin/main` 최신 파일 | `git grep` | `data.json`, `public/data.json`에 메모 문장 있음 (2단계 변경이 아직 `main`에 합쳐지지 않음) | 실행함 (2026-10-06) |
+| 옛 커밋 이력 | `git log -G` | `0f9a3c9`(2026-09-26, 시작 틀), `5f21168`(2026-10-06, 삭제 커밋)에서 메모 문장 확인 | 실행함 (2026-10-06) |
+| 현재 배포 파일 | `curl` 1번 항목 | 미실행 (배포 주소와 환경변수 설정 뒤 학생이 실행) | 미실행 |
+
+#### 남은 약점
+
+- **과거 노출은 해소되지 않았습니다.** 옛 공개 커밋 `0f9a3c9` 등에 메모 문장이 Git 이력으로 남아 있고, 옛 배포(이전 Vercel 배포와 그 `/data.json`)도 남아 있을 수 있습니다. 최신 파일에서 메모를 지운 것은 이후 노출을 줄일 뿐, 이미 공개된 것을 되돌리지 못합니다. 이력을 지우거나 옛 배포를 삭제하기 전까지 "과거 노출 해소"라고 쓰지 않습니다. (메모는 가상 자료입니다. 실제 자료였다면 이력 정리와 옛 배포 삭제가 필요합니다.)
+- **공개 API의 약점이 남아 있습니다.** `/api/notes`는 로그인 없이 누구나 부를 수 있어서 같은 메모 네 건을 읽을 수 있습니다. 검색에서 메모가 안 나와도 이 API로는 읽힙니다. 3단계 이후에 막습니다.
+- **검색은 파일 내용만 봅니다.** 다른 표현이나 글자를 바꾼 사본, 캐시, 제3자가 이미 복사한 자료는 이 검색으로 찾을 수 없습니다.
 
 ## 다음 단계의 코딩 도구에 전달할 규칙
 
