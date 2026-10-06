@@ -14,7 +14,7 @@
 
 `vercel.json`은 정적 결과물 `public`을 배포합니다. 빌드 명령 `npm run build`는 Vercel이 제공하는 GitHub 저장소 소유자·이름, 커밋 SHA, 배포 URL을 검증하고 `public/aleph.json`을 생성합니다. 이 값이 없으면 빌드가 실패하므로, 성공한 것처럼 빈 주소를 내보내지 않습니다. `aleph.json`의 내용만으로 저장소 소유권이나 방어 성공을 인정하지 않습니다. 심판이 공개 저장소의 실제 커밋과 배포된 자료를 따로 대조해야 합니다.
 
-`aleph.config.json`의 `repoUrl`과 `publicAppUrl`은 이전 제출 묶음 방식의 자리표시자입니다. 1단계에서는 학생이 편집하지 않습니다. 2단계 이후 코딩 도구가 필요한 설정과 보호 기능을 단계별로 작성합니다. `npm run bundle`과 `bundle-notes.json`도 1단계의 세 걸음에는 포함되지 않습니다.
+`aleph.config.json`의 `repoUrl`은 2단계 저장점에서 Git `origin` 주소로 맞췄습니다. `publicAppUrl`은 아직 자리표시자이며, 학생이 본인 `https://…vercel.app` 주소를 직접 넣어야 `npm run bundle`의 점검이 실행됩니다. `judgeIssuer`는 운영 측이 채운 값이므로 바꾸지 않습니다. `npm run bundle`과 `bundle-notes.json`도 1단계의 세 걸음에는 포함되지 않습니다.
 
 로컬에서 가상 화면만 확인할 때는 `npm run build -- --local`을 사용합니다. 로컬 실행은 Vercel 배포나 심판 접수를 증명하지 않습니다. 저장소의 `src/attack-check.mjs`는 실제 배포가 된 뒤 `/data.json`을 비로그인으로 요청해 공개 가상 메모의 확인 표시를 읽습니다.
 
@@ -27,6 +27,13 @@
 - 다시 확인: 배포 주소의 `/`에서 카드 네 장이 보이는지, `/data.json`에 메모가 없는지 봅니다. 환경변수가 없으면 `/api/notes`는 `SERVER_NOT_CONFIGURED`(500)를 돌려주고 화면에는 오류 문구만 보입니다.
 
 **아직 남은 약점**: `/api/notes`는 누구나 부를 수 있는 공개 주소입니다. 로그인 확인이 없어서, 주소를 아는 사람은 로그인 없이 같은 메모 네 건을 읽을 수 있습니다. 메모가 `/data.json`에서 빠졌을 뿐 자료 보호는 끝나지 않았습니다. 로그인과 허용 경로는 3단계 이후에 추가합니다.
+
+### 2단계 저장점: 지금 작동하는 기능과 다시 실행하는 방법
+
+- 작동하는 기능: `/`가 `/api/notes`(서버 함수)로 가상 메모 네 건을 그립니다. `/data.json`의 `notes`는 비어 있습니다. 로그인·허용 경로·원본 API는 아직 없습니다(`identityProvider` null, `allowedRoutes` 빈 배열, `originalApiUrl` null).
+- `aleph.config.json`은 `step` 2, `repoUrl`은 Git `origin`과 같은 주소입니다. `src/decider.mjs`의 `RULE_IDS`는 시작점 규칙 `starter.deny`(모두 거부) 하나뿐이며 6단계 전까지 늘리지 않습니다.
+- 다시 실행: `npm run test:r5`(로컬 시험), `npm run build -- --local`(로컬 빌드), 변경 커밋 뒤 `npm run bundle`(제출 묶음 `artifacts/submission.json` 생성, 커밋하지 않음). `bundle`은 `bundle-notes.json`의 `explanation`이 필요하며 이 파일도 커밋하지 않습니다.
+- `src/attack-check.mjs`의 2단계 점검은 배포 주소로 비로그인 `GET /data.json`, `GET /api/notes`를 실제로 보내고 상태·건수·키 문자열 유무만 기록합니다. 심판의 판정이 아닙니다. 배포 주소가 없으면 실행하지 않은 점검으로 남습니다.
 
 ### 2단계 확인 절차: 가상 메모 문장 검색
 
