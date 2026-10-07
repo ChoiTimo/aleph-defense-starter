@@ -201,6 +201,7 @@
 | 배포 화면: B 분리 | 새 탭에서 B로 로그인 | B는 자기 시험 메모만 보이고 A의 메모는 안 보임. B가 추가한 메모는 B 목록에만 생기고 A 새로고침 뒤에도 A 목록에 섞이지 않음 | 학생이 브라우저로 확인함 (2026-10-07 15:00~15:02) |
 | 공개 키로 원본 자료 API 직접 조회(영덕대게이트) | 배포 사이트 F12 콘솔에서 `…/rest/v1/notes?select=id&limit=1`을 공개 키(`apikey`)로 호출 | `401 (Unauthorized)`, `42501 permission denied for table notes`. 메모 내용은 하나도 오지 않음 | 학생이 브라우저로 확인함 (2026-10-07 15:17) |
 | 공개 키로 원본 자료 API 직접 수정(과메기억상실) | 배포 사이트 F12 콘솔에서 `PATCH …/rest/v1/notes?id=eq.00000000-0000-4000-8000-000000000000`을 공개 키로 호출(없는 id라 자료가 바뀌지 않음) | `401 (Unauthorized)`, `42501 permission denied for table notes` | 학생이 브라우저로 확인함 (2026-10-07 15:18) |
+| 공개 키와 시험 계정(로그인한 A) 토큰으로 원본 자료 API 직접 조회·수정 | 로그인한 탭의 F12 콘솔에서 `GET`·`PATCH …/rest/v1/notes`를 공개 키(`apikey`)와 `Authorization: Bearer`(탭의 로그인 토큰, 화면에 출력 안 함)로 호출. `PATCH`는 없는 id라 자료가 바뀌지 않음 | 둘 다 `403 (Forbidden)`, `42501 permission denied for table notes`(안내문에 `TO authenticated`) | 학생이 브라우저로 확인함 (2026-10-07 15:28) |
 | 화면에 공개 키 없음 | 배포 주소의 `view-source:` 화면에서 `sb_publishable` 검색 | 0개(`0/0`). 화면 코드에 공개 키가 없음 | 학생이 브라우저로 확인함 (2026-10-07 15:05) |
 | anon 키로 원본 주소 직접 요청 | `npm run bundle`의 `anon_data_api_notes_refused` | — | 코딩 도구 환경에서는 접속 불가라 확인하지 못함 |
 | 포털 판정(점수) | 포털 | 코딩 도구는 볼 수 없음 | 확인하지 못함 |
