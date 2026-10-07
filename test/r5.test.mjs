@@ -376,28 +376,30 @@ test('step 4: each user lists and reads only their own notes and keeps the {id,t
   assert.deepEqual((await api.list({ authorization: bearer(B) })).body, [{ id: B_NOTE, title: 'B의 메모', body: 'B 본문' }]);
   assert.deepEqual((await api.item({ authorization: bearer(A), id: A_NOTE })).body, { id: A_NOTE, title: 'A의 메모', body: 'A 본문' });
   assert.deepEqual((await api.item({ authorization: bearer(B), id: B_NOTE })).body, { id: B_NOTE, title: 'B의 메모', body: 'B 본문' });
-  // 다른 사람의 한 건 읽기와 주인 없는 메모 읽기는 없는 메모와 똑같이 404입니다. 본문은 나가지 않습니다.
+  // 다른 사람의 한 건 읽기와 주인 없는 메모 읽기는 403입니다. 제목·본문은 나가지 않습니다.
   for (const [user, id] of [[B, A_NOTE], [A, B_NOTE], [A, NO_OWNER], [B, NO_OWNER], [C, A_NOTE]]) {
     const result = await api.item({ authorization: bearer(user), id });
-    assert.equal(result.status, 404);
-    assert.deepEqual(result.body, { error: 'NOT_FOUND' });
+    assert.equal(result.status, 403);
+    assert.deepEqual(result.body, { error: 'FORBIDDEN' });
   }
   const missing = await api.item({ authorization: bearer(A), id: randomUUID() });
   assert.deepEqual([missing.status, missing.body], [404, { error: 'NOT_FOUND' }]);
 });
 
-test('step 4: B cannot edit or delete A\'s note, and nothing in the table changes', async () => {
+test('step 4: B gets 403 editing or deleting A\'s note, and nothing in the table changes', async () => {
   const rows = seedRows();
   const before = JSON.stringify(rows);
   const api = makeApi({ rows });
   const edit = await api.item({ method: 'PUT', authorization: bearer(B), id: A_NOTE,
     body: { title: '가로챔', body: '바뀜', owner_id: B, userId: B, role: 'admin' } });
-  assert.deepEqual([edit.status, edit.body], [404, { error: 'NOT_FOUND' }]);
+  assert.deepEqual([edit.status, edit.body], [403, { error: 'FORBIDDEN' }]);
   const remove = await api.item({ method: 'DELETE', authorization: bearer(B), id: A_NOTE });
-  assert.deepEqual([remove.status, remove.body], [404, { error: 'NOT_FOUND' }]);
+  assert.deepEqual([remove.status, remove.body], [403, { error: 'FORBIDDEN' }]);
   // 주인 없는 처음 메모도 누구나 고칠 수 없습니다.
-  assert.equal((await api.item({ method: 'PUT', authorization: bearer(A), id: NO_OWNER, body: { title: 'x', body: 'y' } })).status, 404);
-  assert.equal((await api.item({ method: 'DELETE', authorization: bearer(A), id: NO_OWNER })).status, 404);
+  assert.equal((await api.item({ method: 'PUT', authorization: bearer(A), id: NO_OWNER, body: { title: 'x', body: 'y' } })).status, 403);
+  assert.equal((await api.item({ method: 'DELETE', authorization: bearer(A), id: NO_OWNER })).status, 403);
+  // 없는 id는 그대로 404입니다.
+  assert.equal((await api.item({ method: 'DELETE', authorization: bearer(A), id: randomUUID() })).status, 404);
   assert.equal(JSON.stringify(rows), before);
 });
 

@@ -2,8 +2,9 @@
 // - 요청자는 Authorization 토큰을 src/verify-login.mjs로 검사해 확인합니다.
 //   브라우저가 보낸 userId·role·owner_id는 URL·쿼리·본문 어디에 있어도 읽지도 믿지도 않습니다.
 // - 소유자 검사: 모든 읽기·수정·삭제 조건에 "owner_id = 서버가 확인한 사용자 ID"를 함께 넣습니다.
-//   남의 메모는 없는 메모와 똑같이 404로 답해서 그 id가 존재하는지도 알려 주지 않습니다.
-//   (조건을 한 질의에 넣어서 확인과 변경 사이에 끼어들 틈이 없습니다.)
+//   조건을 한 질의에 넣어서 확인과 변경 사이에 끼어들 틈이 없습니다. 조건에 맞는 행이 없을 때만
+//   그 id가 있는지 따로 보고, 있으면(남의 메모·주인 없는 메모) 403 FORBIDDEN, 없으면 404 NOT_FOUND로 답합니다.
+//   남의 메모의 제목·본문은 어떤 응답에도 넣지 않습니다.
 // - POST는 서버가 확인한 사용자 ID를 owner_id로 저장합니다.
 // - PUT은 기존 행의 owner_id가 본인일 때만 바꾸고, 새 행의 owner_id도 본인 ID로 고정합니다(소유자 변경 불가).
 // - owner_id가 비어 있는 처음 메모는 누구와도 일치하지 않아 아무도 접근하지 못합니다.
@@ -105,12 +106,17 @@ export function createNotesApi({ getVerifier, getSupabase }) {
   const item = guarded(['GET', 'PUT', 'DELETE'], async ({ request, response, supabase, userId }) => {
     const id = idFromRequest(request);
     if (typeof id !== 'string' || !UUID.test(id)) return response.status(400).json({ error: 'INVALID_ID' });
-    const notFound = () => response.status(404).json({ error: 'NOT_FOUND' });
+    // 본인 조건에 맞는 행이 없을 때만 부릅니다: id가 있으면 남의 것(403), 없으면 404. 자료는 읽어 오지 않고 id만 봅니다.
+    const notFound = async () => {
+      const { data, error } = await supabase.from('notes').select('id').eq('id', id).maybeSingle();
+      if (error) return failed(response, error, '소유자 확인');
+      return data ? response.status(403).json({ error: 'FORBIDDEN' }) : response.status(404).json({ error: 'NOT_FOUND' });
+    };
     if (request.method === 'GET') {
       const { data, error } = await supabase.from('notes').select('id, title, content')
         .eq('id', id).eq('owner_id', userId).maybeSingle();
       if (error) return failed(response, error, '읽기');
-      return data ? response.status(200).json(toPublic(data)) : notFound();
+      return data ? response.status(200).json(toPublic(data)) : await notFound();
     }
     if (request.method === 'PUT') {
       const note = readNote(request.body, { allowId: false });
@@ -120,12 +126,12 @@ export function createNotesApi({ getVerifier, getSupabase }) {
         .update({ title: note.title, content: note.body, owner_id: userId })
         .eq('id', id).eq('owner_id', userId).select('id, title, content');
       if (error) return failed(response, error, '수정');
-      return data?.length ? response.status(200).json(toPublic(data[0])) : notFound();
+      return data?.length ? response.status(200).json(toPublic(data[0])) : await notFound();
     }
     const { data, error } = await supabase.from('notes').delete()
       .eq('id', id).eq('owner_id', userId).select('id');
     if (error) return failed(response, error, '삭제');
-    return data?.length ? response.status(200).json({ id: data[0].id }) : notFound();
+    return data?.length ? response.status(200).json({ id: data[0].id }) : await notFound();
   });
 
   return { collection, item };
