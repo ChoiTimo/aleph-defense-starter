@@ -155,11 +155,16 @@
 | `test:package` | `npm run test:package` | 1건 실패(기존 문제, 위 "알려진 문제"의 기준표). 4단계 변경과 무관 | 실행함 (2026-10-07) |
 | 비밀값 검사 | `npm run check:secrets` | 추적 파일 47개에서 키처럼 보이는 문자열 없음 | 실행함 (2026-10-07) |
 | SQL 적용 뒤 A의 세 메모·B의 한 메모 소유자 ID | SQL Editor에서 소유자 연결 SQL 실행 뒤 `position, id, owner_id` 표 | 5줄: `position` 1·2·3은 같은 `owner_id`(A), 4번은 NULL(주인 없음), `position` NULL 한 줄은 다른 `owner_id`(B의 시험 메모). A 세 건·B 한 건 확인 | 학생이 실행·확인함 (2026-10-07 12:43) |
-| 적용 전후 권한 대조 | `has_table_privilege` 표(`sel·ins·upd·del`) | 적용 전: `anon`·`authenticated` 모두 전부 `false`. 적용(`Success. No rows returned`) 뒤: `anon` 전부 `false`, `authenticated` 네 개 전부 `true`. (TRUNCATE·REFERENCES·TRIGGER 열, `information_schema.role_table_grants` 목록, 정책 4개 개수는 확인하지 않음) | 학생이 실행·확인함 (2026-10-07 12:44~12:45) |
-| 배포된 서버에서 A/B 각자 자기 메모 허용, 상대 메모 읽기·수정·삭제 거부 | 학생이 두 계정으로 화면·F12에서 확인 | — | **미확인** |
+| 적용 전후 권한 대조 | `has_table_privilege` 표(`sel·ins·upd·del`) | 적용 전: `anon`·`authenticated` 모두 전부 `false`. 적용(`Success. No rows returned`) 뒤: `anon` 전부 `false`, `authenticated` 네 개 전부 `true`. (TRUNCATE·REFERENCES·TRIGGER 열과 `information_schema.role_table_grants` 목록은 확인하지 않음) | 학생이 실행·확인함 (2026-10-07 12:44~12:45) |
+| 정책 4개 | SQL Editor `pg_policies` 조회 | 4줄: `notes_delete_own`(DELETE)·`notes_insert_own`(INSERT)·`notes_select_own`(SELECT)·`notes_update_own`(UPDATE), `roles`는 모두 `{authenticated}` | 학생이 실행·확인함 (2026-10-07 13:57) |
+| 새 배포 확인 | 배포 주소의 `/aleph.json`을 브라우저로 염 | `step` 4, `commit`은 4단계 병합 커밋(`fb84cf6…`), JSON으로 열림 | 학생이 브라우저로 확인함 (2026-10-07 13:46) |
+| 배포된 서버: 내 자료만 보임 | 같은 InPrivate 창의 탭 두 개에 A·B로 로그인 | A 탭은 원래 가상 메모 3건, B 탭은 "B의 시험 메모" 1건만 보임. B 화면에 A의 메모 없음 | 학생이 브라우저로 확인함 (2026-10-07 13:44) |
+| 배포된 서버: 남의 메모 id 요청 | B 탭 F12 콘솔에서 A의 메모 id로 `GET`·`PUT`·`DELETE` 전송 | 세 요청 모두 403 `{"error":"FORBIDDEN"}`, A 화면의 원래 메모 3건은 그대로 | 학생이 확인함 (2026-10-07 13:49~13:52) |
+| 배포된 서버: A·B 각자 추가·수정·삭제 | 각 탭 화면에서 직접 누름 | A·B 모두 "추가했습니다."·"수정했습니다."·"삭제했습니다."가 뜨고 상대 목록에 섞이지 않음 | 학생이 브라우저로 확인함 (2026-10-07 13:51~13:57) |
 | anon 키로 직접 Data API 거부 | `npm run bundle`의 `anon_data_api_notes_refused` 또는 SQL [D-1] | — | **미실행** (코딩 도구 환경은 외부 접속이 막혀 있음) |
 | 포털 판정(점수) | 포털 | 코딩 도구는 볼 수 없음 | 확인하지 못함 |
 
+- 5단계를 마친 뒤에도 같은 화면 확인(A·B 목록 분리, 각자 추가·수정·삭제, 남의 id 403)을 다시 해야 합니다.
 - `src/attack-check.mjs`의 4단계 점검은 3단계의 비로그인·가짜 토큰 점검 10개에 더해 anon 키 직접 Data API 점검 1개를 실제로 보내고, 남의 메모 읽기·수정·삭제 3개는 **미실행**으로 적습니다(두 계정의 로그인이 필요한데 비밀번호·토큰을 코드에 둘 수 없습니다). 상태 번호와 건수만 기록하고 심판의 판정이 아닙니다.
 
 ### 4단계 저장점: 지금 작동하는 기능과 다시 실행하는 방법
