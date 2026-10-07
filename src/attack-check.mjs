@@ -1,7 +1,7 @@
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if (![1, 2, 3].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
+  if (![1, 2, 3, 4].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
   try {
     app = new URL(config.publicAppUrl);
@@ -14,6 +14,7 @@ export async function runAttackChecks(config) {
   }
   if (typeof config.sampleMarker !== 'string' || !config.sampleMarker) throw new Error('가상 메모의 확인 표시를 넣어 주세요.');
   const get = (path) => fetch(new URL(path, app), { redirect: 'error', signal: AbortSignal.timeout(10000) });
+  if (config.step === 4) return runStep4Checks(fetch, app, config);
   if (config.step === 3) return runStep3Checks(fetch, app, config.sampleMarker);
   if (config.step === 2) return runStep2Checks(get, config.sampleMarker);
   const response = await get('/data.json');
@@ -131,5 +132,49 @@ async function runStep3Checks(doFetch, app, marker) {
       () => send('GET', '/api/notes', { token: fakeJwt({ ...claims, iss: 'https://other.supabase.co/auth/v1' }) })],
   ];
   for (const [attackId, expected, run] of cases) results.push(await refused(attackId, expected, await run()));
+  return results;
+}
+
+// 4단계: 3단계의 비로그인·가짜 토큰 점검을 그대로 하고, 두 가지를 더합니다.
+// (1) 직접 Data API(/rest/v1/notes)를 화면에 공개된 anon(publishable) 키로 불러 거부되는지 봅니다.
+//     authenticated 역할의 직접 접근은 심판이 재현할 수 없어 여기서도 보내지 않습니다.
+// (2) 남의 메모 읽기·수정·삭제는 A·B 두 계정의 로그인이 필요합니다. 비밀번호·토큰을 코드에 둘 수 없으므로
+//     이 파일은 보내지 않고 "미실행"으로 적습니다. 학생이 화면에서 직접 확인한 결과는 README에 따로 적습니다.
+// 상태 번호와 건수만 기록합니다. 심판의 판정이 아니라 학생의 자기 점검입니다.
+async function runStep4Checks(doFetch, app, config) {
+  const results = await runStep3Checks(doFetch, app, config.sampleMarker);
+  const id = 'anon_data_api_notes_refused';
+  const expected = 'anon 키로 직접 Data API(/rest/v1/notes)를 읽으면 거부됨(권한 회수)';
+  const unknown = (why) => ({ attackId: id, expected, observed: `확인하지 못함 (${why})` });
+  try {
+    const base = new URL(config.identityProvider.issuer).origin;
+    const page = await doFetch(new URL('/', app), { redirect: 'error', signal: AbortSignal.timeout(10000) });
+    const key = (await page.text()).match(/sb_publishable_[A-Za-z0-9_-]{8,}/u)?.[0];
+    if (!key) {
+      results.push(unknown('화면에서 공개 키를 찾지 못함'));
+    } else {
+      const response = await doFetch(new URL('/rest/v1/notes?select=id&limit=1', base), {
+        redirect: 'error', signal: AbortSignal.timeout(10000), headers: { apikey: key } });
+      let data = null;
+      try { data = JSON.parse(await response.text()); } catch { /* JSON이 아니면 Data API의 응답으로 보지 않습니다. */ }
+      if (Array.isArray(data) && data.length) {
+        results.push({ attackId: id, expected, observed: `거부되지 않음 (HTTP ${response.status}, 메모 ${data.length}건 이상 보임)` });
+      } else if (Array.isArray(data)) {
+        results.push({ attackId: id, expected, observed: `행은 보이지 않음 (HTTP ${response.status}). 권한 회수는 SQL(has_table_privilege)로 따로 확인` });
+      } else if (data && typeof data === 'object' && !response.ok && data.code === '42501') {
+        results.push({ attackId: id, expected, observed: `거부됨 (HTTP ${response.status}, 권한 없음 42501)` });
+      } else {
+        results.push(unknown(`HTTP ${response.status}, Data API의 응답으로 보이지 않음`));
+      }
+    }
+  } catch {
+    results.push(unknown('요청을 보내지 못함'));
+  }
+  for (const [attackId, what] of [['other_owner_read_refused', '남의 메모 읽기(GET /api/notes/:id)'],
+    ['other_owner_update_refused', '남의 메모 수정(PUT /api/notes/:id)'],
+    ['other_owner_delete_refused', '남의 메모 삭제(DELETE /api/notes/:id)']]) {
+    results.push({ attackId, expected: `로그인한 B가 A의 메모에 한 ${what}이 거부됨`,
+      observed: '미실행 (A·B 두 계정의 로그인이 필요해 이 파일은 보내지 않음. 화면 확인 결과는 README 참고)' });
+  }
   return results;
 }

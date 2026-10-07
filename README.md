@@ -100,7 +100,7 @@
   `title`은 1~200자, `body`는 5000자까지이고 형식이 틀리면 400입니다. 응답에 `owner_id`는 없습니다.
 - `identityProvider`: Supabase 로그인 발급자·키 목록 주소·audience를 적었습니다(비밀 키 없음). `RULE_IDS`는 여전히 `starter.deny` 하나뿐이며 6단계 전까지 늘리지 않습니다.
 
-**알려진 허점(4단계에서 고칠 예정)**: 아직 소유자 검사를 하지 않습니다. 로그인한 B가 A의 메모 id를 알면 `GET`·`PUT`·`DELETE /api/notes/:id`로 A의 메모를 읽고 고치고 지울 수 있습니다. 목록 `GET /api/notes`는 본인 메모만 돌려주지만 한 건 경로는 막지 않습니다. 이 허점은 4단계에서 소유자 검사로 막고, B의 타인 메모 접근 결과도 그때 기록합니다. 처음의 가상 메모 4건은 `owner_id`가 비어 있어 누구의 목록에도 보이지 않습니다(DB에는 그대로 있습니다).
+**(3단계 당시 기록. 이 허점은 4단계에서 소유자 검사로 막았습니다. 아래 "4단계" 절을 보세요.) 알려진 허점**: 아직 소유자 검사를 하지 않습니다. 로그인한 B가 A의 메모 id를 알면 `GET`·`PUT`·`DELETE /api/notes/:id`로 A의 메모를 읽고 고치고 지울 수 있습니다. 목록 `GET /api/notes`는 본인 메모만 돌려주지만 한 건 경로는 막지 않습니다. 이 허점은 4단계에서 소유자 검사로 막고, B의 타인 메모 접근 결과도 그때 기록합니다. 처음의 가상 메모 4건은 `owner_id`가 비어 있어 누구의 목록에도 보이지 않습니다(DB에는 그대로 있습니다).
 
 ### 3단계 확인 기록
 
@@ -128,9 +128,45 @@
 
 - 작동하는 기능: 이메일·비밀번호로 로그인·로그아웃하는 화면(공식 Supabase SDK)이 있고, 로그인한 사용자만 서버(`/api/notes`, `/api/notes/:id`)로 자기 가상 메모를 추가·조회·수정·삭제합니다. 로그인 없는 요청과 위조·만료·다른 발급자 토큰은 401 `LOGIN_REQUIRED`로 거부됩니다. `/data.json`은 404입니다. 원본 API(`originalApiUrl`)와 복구 경로는 아직 없습니다(null).
 - 설정 대조(2026-10-07): `aleph.config.json`은 `step` 3, `repoUrl`은 Git `origin`과 같은 주소, `publicAppUrl`은 실제 배포 주소, `judgeIssuer`는 운영 측이 채운 값 그대로(바꾸지 않음), `identityProvider`는 실제로 검증에 쓰는 로그인 발급자(비밀 키 없음), `allowedRoutes` 5개는 실제 파일(`api/notes.js`, `api/notes/[id].js`)과 일치합니다. `src/decider.mjs`의 `RULE_IDS`는 `starter.deny` 하나뿐입니다(6단계 전까지 늘리지 않음).
-- 허점(4단계에서 고침): 소유자 검사가 없어 로그인한 B가 A의 메모 id를 알면 한 건 경로로 읽고 고치고 지울 수 있습니다.
+- (3단계 당시 기록, 4단계에서 고침) 허점: 소유자 검사가 없어 로그인한 B가 A의 메모 id를 알면 한 건 경로로 읽고 고치고 지울 수 있습니다.
 - 다시 실행: `npm run test:r5`(로컬 시험), `npm run build -- --local`(로컬 빌드), 병합 커밋이 아닌 일반 커밋 위에서 `npm run bundle`. `bundle`은 커밋되지 않은 파일이 없어야 하고, 커밋하지 않는 `bundle-notes.json`의 `explanation`이 필요합니다. `bundle`이 만드는 `artifacts/submission.json`도 커밋하지 않습니다.
 - `bundle`의 직접 점검(`src/attack-check.mjs`)은 배포 주소로 실제 요청을 보내므로, 제출 묶음의 커밋을 배포(`main` 병합 뒤 Vercel `Ready`)한 다음에 심판에 내야 심판이 보는 배포와 같습니다. 이 점검은 심판의 판정이 아닙니다.
+
+## 4단계: 로그인해도 내 자료만 보이게 합니다
+
+`aleph.config.json`은 `step` 4입니다. 로그인한 A와 B는 각자 자기 메모만 읽고 추가·수정·삭제하고, 남의 메모 접근과 소유자 변경은 거부됩니다. (처음 가상 메모 중 A의 세 건에 `owner_id`를 연결하는 SQL과 DB 권한 SQL은 학생이 SQL Editor에서 직접 실행했습니다. 결과는 아래 "4단계 확인 기록"에 있습니다. 코딩 도구는 DB에 접속하지 않았습니다.)
+
+- **API 소유자 검사**(`src/notes-api.mjs`): 서버가 토큰으로 확인한 사용자 ID만 소유자로 씁니다. URL·쿼리·본문의 `owner_id`·`userId`·`role`은 읽지 않습니다.
+  - 목록·한 건 읽기·수정·삭제: 모두 `id`와 함께 `owner_id = 확인된 사용자 ID`를 한 질의에 넣습니다(확인과 변경 사이에 틈이 없습니다). 본인 조건에 맞는 행이 없을 때만 그 id가 있는지 보고, 있으면(남의 메모, `owner_id`가 비어 있는 처음 메모) **403 `FORBIDDEN`**, 없으면 **404 `NOT_FOUND`** 로 답합니다. 남의 메모의 제목·본문은 응답에 넣지 않습니다.
+  - 추가: 확인된 사용자 ID로 저장합니다. 본문의 `owner_id`는 버립니다. 남의 메모와 같은 `id`로 만들려 하면 409이고 덮어쓰지 않습니다.
+  - 수정: 기존 행이 본인 것일 때만 고치고, 새 행의 `owner_id`도 본인 ID로 고정합니다(소유자를 바꿀 수 없음).
+  - 응답 모양은 그대로입니다: 한 건 `{id,title,body}`, 수정 본문 `{title,body}`.
+- `allowedRoutes`는 실제 파일(`api/notes.js`, `api/notes/[id].js`)이 받는 방법·경로와 같은 5개입니다: `GET /api/notes`, `POST /api/notes`, `GET /api/notes/:id`, `PUT /api/notes/:id`, `DELETE /api/notes/:id`.
+- **SQL 두 개(학생이 검토 후 직접 실행)**
+  1. [`sql/4-notes-owner.sql`](sql/4-notes-owner.sql): `auth.users`에서 이메일로 A·B의 ID를 찾아, `position` 1·2·3번 메모 중 주인 없는 것을 A로 연결합니다. 이메일은 `<<A_EMAIL>>`·`<<B_EMAIL>>` 자리표시자이며 **실행할 때 화면에서만** 바꾸고 저장·커밋하지 않습니다. A를 못 찾거나 연결 뒤 A의 메모가 3개가 아니면 오류로 취소합니다. B의 시험 메모 한 건은 본문이 들어 있어 Git에서 제외한 `supabase/4-b-test-note.sql`에 있습니다(처음 가상 메모 4건 중 4번째는 `owner_id`가 비어 있는 채로 남습니다).
+  2. [`sql/4-notes-rls.sql`](sql/4-notes-rls.sql): `public.notes`만 다룹니다. `REVOKE ALL … FROM public, anon, authenticated` 뒤 `authenticated`에 SELECT·INSERT·UPDATE·DELETE만 GRANT하고, 정책 4개를 만듭니다(SELECT·DELETE는 기존 행 `USING`, INSERT는 새 행 `WITH CHECK`, UPDATE는 `USING`과 `WITH CHECK`, 모두 `auth.uid() = owner_id`). 적용 전 [A]·적용 후 [C]에 `information_schema.role_table_grants`와 `has_table_privilege`로 `anon`·`authenticated`의 실제 권한을 대조하는 질의가 있습니다.
+- 서버 함수는 서버 전용 키로 DB를 읽으므로 RLS의 영향을 받지 않습니다. RLS와 권한은 화면 밖에서 DB를 직접 부르는 길(Data API)을 막는 두 번째 방어선입니다. 직접 Data API는 anon 키로만 점검합니다(`src/attack-check.mjs`). `authenticated` 역할의 직접 접근은 심판이 재현할 수 없어 점수에서 빠진다고 안내되어 있습니다.
+
+### 4단계 확인 기록
+
+| 항목 | 방법 | 결과 | 실행 여부 |
+| --- | --- | --- | --- |
+| 소유자 검사(읽기·추가·수정·삭제), 남의 메모 403, 소유자 변경 불가, 본인 메모 정상 | `npm run test:r5` (가짜 DB) | 20건 통과. 옛 코드로 되돌리면 새 시험 3건이 실패함을 확인 | 실행함 (2026-10-07) |
+| `test:package` | `npm run test:package` | 1건 실패(기존 문제, 위 "알려진 문제"의 기준표). 4단계 변경과 무관 | 실행함 (2026-10-07) |
+| 비밀값 검사 | `npm run check:secrets` | 추적 파일 47개에서 키처럼 보이는 문자열 없음 | 실행함 (2026-10-07) |
+| SQL 적용 뒤 A의 세 메모·B의 한 메모 소유자 ID | SQL Editor에서 소유자 연결 SQL 실행 뒤 `position, id, owner_id` 표 | 5줄: `position` 1·2·3은 같은 `owner_id`(A), 4번은 NULL(주인 없음), `position` NULL 한 줄은 다른 `owner_id`(B의 시험 메모). A 세 건·B 한 건 확인 | 학생이 실행·확인함 (2026-10-07 12:43) |
+| 적용 전후 권한 대조 | `has_table_privilege` 표(`sel·ins·upd·del`) | 적용 전: `anon`·`authenticated` 모두 전부 `false`. 적용(`Success. No rows returned`) 뒤: `anon` 전부 `false`, `authenticated` 네 개 전부 `true`. (TRUNCATE·REFERENCES·TRIGGER 열, `information_schema.role_table_grants` 목록, 정책 4개 개수는 확인하지 않음) | 학생이 실행·확인함 (2026-10-07 12:44~12:45) |
+| 배포된 서버에서 A/B 각자 자기 메모 허용, 상대 메모 읽기·수정·삭제 거부 | 학생이 두 계정으로 화면·F12에서 확인 | — | **미확인** |
+| anon 키로 직접 Data API 거부 | `npm run bundle`의 `anon_data_api_notes_refused` 또는 SQL [D-1] | — | **미실행** (코딩 도구 환경은 외부 접속이 막혀 있음) |
+| 포털 판정(점수) | 포털 | 코딩 도구는 볼 수 없음 | 확인하지 못함 |
+
+- `src/attack-check.mjs`의 4단계 점검은 3단계의 비로그인·가짜 토큰 점검 10개에 더해 anon 키 직접 Data API 점검 1개를 실제로 보내고, 남의 메모 읽기·수정·삭제 3개는 **미실행**으로 적습니다(두 계정의 로그인이 필요한데 비밀번호·토큰을 코드에 둘 수 없습니다). 상태 번호와 건수만 기록하고 심판의 판정이 아닙니다.
+
+### 4단계 저장점: 지금 작동하는 기능과 다시 실행하는 방법
+
+- 작동하는 기능: 3단계의 로그인·메모 추가·조회·수정·삭제에 소유자 검사가 더해졌습니다. 로그인한 사용자는 자기 메모만 보고 바꾸며, 남의 메모는 403으로 거부됩니다(없는 id는 404). DB 권한 SQL(`sql/4-notes-rls.sql`의 변경 구역)은 학생이 2026-10-07 실행해 `authenticated`에만 4가지 권한이 남았습니다.
+- 설정 대조(2026-10-07): `aleph.config.json`은 `step` 4, `repoUrl`은 Git `origin`과 같은 주소, `publicAppUrl`은 실제 배포 주소, `judgeIssuer`는 바꾸지 않음, `identityProvider`는 3단계와 같음, `allowedRoutes` 5개는 실제 파일과 일치, `originalApiUrl`은 null(5단계부터). `RULE_IDS`는 `starter.deny` 하나뿐입니다.
+- 다시 실행: `npm run test:r5`, `npm run build -- --local`, `npm run check:secrets`, 일반 커밋 위에서 `npm run bundle`(커밋하지 않는 `bundle-notes.json`의 `explanation` 필요, 결과 `artifacts/submission.json`도 커밋하지 않음).
 
 ## 다음 단계의 코딩 도구에 전달할 규칙
 
