@@ -173,6 +173,34 @@
 - 설정 대조(2026-10-07): `aleph.config.json`은 `step` 4, `repoUrl`은 Git `origin`과 같은 주소, `publicAppUrl`은 실제 배포 주소, `judgeIssuer`는 바꾸지 않음, `identityProvider`는 3단계와 같음, `allowedRoutes` 5개는 실제 파일과 일치, `originalApiUrl`은 null(5단계부터). `RULE_IDS`는 `starter.deny` 하나뿐입니다.
 - 다시 실행: `npm run test:r5`, `npm run build -- --local`, `npm run check:secrets`, 일반 커밋 위에서 `npm run bundle`(커밋하지 않는 `bundle-notes.json`의 `explanation` 필요, 결과 `artifacts/submission.json`도 커밋하지 않음).
 
+## 5단계: 자료 요청을 서버 한곳으로 모읍니다
+
+`aleph.config.json`은 `step` 5입니다.
+
+- **브라우저**: `public/index.html`은 `client.auth.*`(로그인·로그아웃·세션)만 Supabase에 부르고, 메모 읽기·추가·수정·삭제는 모두 `fetch('/api/notes…')`로 서버 함수만 부릅니다. Supabase 자료를 직접 읽거나 고치는 호출은 없습니다(제작 1에서 확인, 파일 변경 없음).
+- **서버 함수**: 로그인·소유자 검사와 서버 전용 키 설정은 4단계 그대로입니다. 로컬 시험 `npm run test:r5` 21건 통과(가짜 DB).
+- **직접 권한 회수 SQL**: [`sql/5-notes-revoke-direct.sql`](sql/5-notes-revoke-direct.sql)은 `public.notes`만 다룹니다. `revoke all … from public, anon, authenticated` 한 줄이 핵심이고, 서버 함수가 쓰는 `service_role`은 대상이 아닙니다. RLS와 4단계 정책 4개는 그대로 둡니다. 적용 전 [A]·적용 후 [C]에서 `has_table_privilege`로 `anon`·`authenticated`가 전부 `false`, `service_role`이 `true`인지 대조합니다.
+- **원본 자료 주소**: `originalApiUrl`은 `https://vskaxngivuhucmbnoagz.supabase.co/rest/v1/notes`(쿼리 없음)입니다. 심판이 anon 키로 이 주소를 직접 불러 확인합니다.
+- `src/attack-check.mjs`는 5단계에서 직접 점검 주소로 `originalApiUrl`을 씁니다. 나머지 점검은 4단계와 같고, 남의 메모 3건은 미실행입니다.
+- 아직 알려지지 않은 점: 화면(`public/index.html`)에는 로그인(Auth)에 필요한 Supabase 공개 키(`sb_publishable_…`)가 있습니다. 로그인 호출은 그대로 두기로 해서 남겨 두었습니다.
+
+### 5단계 확인 기록
+
+| 항목 | 방법 | 결과 | 실행 여부 |
+| --- | --- | --- | --- |
+| 서버 함수에서 A의 읽기·추가·수정·삭제 | `npm run test:r5` (가짜 DB) | 21건 통과 | 실행함 (2026-10-07) |
+| 비밀값 검사 | `npm run check:secrets` | 키처럼 보이는 문자열 없음 | 실행함 (2026-10-07) |
+| 권한 회수 SQL 적용·전후 대조 | SQL Editor [A]→[B]→[C] | — | **미실행** (학생이 학습 DB에서 실행해야 함) |
+| 배포 화면: A 정상·B 거부·무로그인 | 브라우저 | — | **미실행** |
+| anon 키로 원본 주소 직접 요청 | `npm run bundle`의 `anon_data_api_notes_refused` | — | 코딩 도구 환경에서는 접속 불가라 확인하지 못함 |
+| 포털 판정(점수) | 포털 | 코딩 도구는 볼 수 없음 | 확인하지 못함 |
+
+### 5단계 저장점: 지금 작동하는 기능과 다시 실행하는 방법
+
+- 작동하는 기능: 4단계의 로그인·소유자 검사에 더해, 메모 자료 요청이 서버 함수 한곳으로 모였고 직접 권한을 거두는 SQL을 준비했습니다(**SQL은 아직 적용 전**).
+- 설정 대조(2026-10-07): `step` 5, `repoUrl`은 Git `origin`과 같은 주소, `publicAppUrl`은 실제 배포 주소, `judgeIssuer`는 바꾸지 않음, `identityProvider`는 4단계와 같음, `allowedRoutes` 5개는 실제 파일과 일치, `originalApiUrl`은 위 주소. `RULE_IDS`는 `starter.deny` 하나뿐입니다.
+- 다시 실행: `npm run test:r5`, `npm run check:secrets`, 일반 커밋 위에서 `npm run bundle`(커밋하지 않는 `bundle-notes.json`의 `explanation` 필요, 결과 `artifacts/submission.json`도 커밋하지 않음).
+
 ## 다음 단계의 코딩 도구에 전달할 규칙
 
 [AGENTS.md](AGENTS.md)를 먼저 읽히고 한 번에 한 제작 단위만 요청하세요. 2단계부터는 자료 보호를 구현할 때 `public/data.json`을 복사하는 1단계 빌드 흐름도 함께 바꿔야 합니다. 3단계 이후의 로그인, 허용 경로, 5단계의 원본 API 주소, 6단계 이후 정책 규칙은 해당 단계 원고와 계약에 맞춰 추가합니다. 비밀번호·토큰·서버 전용 키·실제 학생 기록을 코드, Git, 제출 묶음에 넣지 않습니다.

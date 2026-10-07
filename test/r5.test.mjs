@@ -196,8 +196,9 @@ function makeApi({ rows = [], configured = true } = {}) {
   return { rows, list: o => call(api.collection, o), item: o => call(api.item, o) };
 }
 
-test('aleph.config.json is at step 4 and names the login issuer and the five real API routes', () => {
-  assert.equal(realConfig.step, 4);
+test('aleph.config.json is at step 5 and names the login issuer and the five real API routes', () => {
+  assert.equal(realConfig.step, 5);
+  assert.equal(realConfig.originalApiUrl, 'https://vskaxngivuhucmbnoagz.supabase.co/rest/v1/notes');
   assert.doesNotThrow(() => createLoginVerifier({ config: realConfig,
     supabaseClient: { auth: { getClaims: async () => ({}) } } }));
   assert.deepEqual(realConfig.allowedRoutes, ['GET /api/notes', 'POST /api/notes',
@@ -493,6 +494,30 @@ test('step 4 attack check adds a direct anon Data API probe and leaves cross-own
     assert.equal(JSON.stringify(open).includes('가상 제목'), false);
     const proxy = await run(() => new Response('Host not in allowlist', { status: 403 }));
     assert.match(proxy.find(item => item.attackId === 'anon_data_api_notes_refused').observed, /^확인하지 못함/u);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('step 5: the direct probe uses originalApiUrl, and the revoke SQL touches only notes and revokes nothing from service_role', async () => {
+  const sql = readFileSync(new URL('../sql/5-notes-revoke-direct.sql', import.meta.url), 'utf8').replace(/--.*$/gmu, '');
+  assert.match(sql, /revoke all on table public\.notes from public, anon, authenticated;/u);
+  assert.equal(/\bgrant\b|\bdrop\b|\btruncate\b|\bfrom\b[^;]*service_role/iu.test(sql.replace(/select[^;]*;/giu, '')), false);
+  assert.equal(/\b(alter|drop|truncate|revoke)\s+(table\s+)?(?!(all on table )?public\.notes\b)/iu.test(sql), false);
+  const originalFetch = globalThis.fetch;
+  const sent = [];
+  globalThis.fetch = async (url) => {
+    const u = new URL(String(url));
+    sent.push(u.host + u.pathname + u.search);
+    if (u.host.endsWith('.supabase.co')) return new Response(JSON.stringify({ code: '42501' }), { status: 401 });
+    if (u.pathname === '/') return new Response('sb_publishable_TESTKEY123456', { status: 200 });
+    if (u.pathname === '/data.json') return new Response('Not Found', { status: 404 });
+    return new Response(JSON.stringify({ error: 'LOGIN_REQUIRED' }), { status: 401 });
+  };
+  try {
+    const out = await runAttackChecks({ ...config, ...realConfig });
+    assert.ok(sent.includes('vskaxngivuhucmbnoagz.supabase.co/rest/v1/notes?select=id&limit=1'));
+    assert.match(out.find(item => item.attackId === 'anon_data_api_notes_refused').observed, /^거부됨/u);
   } finally {
     globalThis.fetch = originalFetch;
   }
