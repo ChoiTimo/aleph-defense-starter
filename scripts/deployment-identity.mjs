@@ -11,12 +11,12 @@ export function deploymentIdentity(env, config) {
   if (env.VERCEL_GIT_PROVIDER !== 'github' || !OWNER.test(owner || '')
       || !REPO.test(repo || '') || repo === '.' || repo === '..'
       || repo.toLowerCase().endsWith('.git') || !SHA.test(commit || '')
-      || !HOST.test(host || '') || ![1, 2, 3, 4].includes(config?.step)
+      || !HOST.test(host || '') || ![1, 2, 3, 4, 5].includes(config?.step)
       || typeof config.judgeIssuer !== 'string'
       || !/^https:\/\/[a-z0-9-]+\.up\.railway\.app\/defense\/judge$/iu.test(config.judgeIssuer)
       || (config.step === 1 && (typeof config.sampleMarker !== 'string'
         || !/^[A-Z0-9_]{1,80}$/u.test(config.sampleMarker)))) {
-    throw new Error('배포 식별 정보를 확인할 수 없습니다. Vercel 시스템 환경변수와 aleph.config.json의 단계(1~4)를 확인하세요.');
+    throw new Error('배포 식별 정보를 확인할 수 없습니다. Vercel 시스템 환경변수와 aleph.config.json의 단계(1~5)를 확인하세요.');
   }
   return {
     schema: 'aleph.defense.deployment.v1',
@@ -27,5 +27,11 @@ export function deploymentIdentity(env, config) {
     judgeIssuer: config.judgeIssuer,
     // 확인 표시는 1단계 공개 자료용입니다. 2단계부터는(3·4단계 포함) 정적 응답에 내보내지 않습니다.
     ...(config.step === 1 ? { sampleMarker: config.sampleMarker } : {}),
+    // 3단계부터: 서버 함수가 실제로 받는 방법·경로(비밀 아님). 5단계부터: 원본 자료의 HTTPS 경로.
+    ...(config.step >= 3 && Array.isArray(config.allowedRoutes) && config.allowedRoutes.length
+      && config.allowedRoutes.every((route) => typeof route === 'string' && /^[A-Z]+ \/[\w\-./:]*$/u.test(route))
+      ? { allowedRoutes: [...config.allowedRoutes] } : {}),
+    ...(config.step >= 5 && typeof config.originalApiUrl === 'string'
+      && /^https:\/\/[^\s?#]+$/u.test(config.originalApiUrl) ? { originalApiUrl: config.originalApiUrl } : {}),
   };
 }

@@ -1,7 +1,7 @@
 // The student changes this check as each stage adds an attack to the same app.
 // Never return tokens, private keys, real names, or note bodies.
 export async function runAttackChecks(config) {
-  if (![1, 2, 3, 4].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
+  if (![1, 2, 3, 4, 5].includes(config.step)) throw new Error('이 단계의 공격 점검을 src/attack-check.mjs에 구현해 주세요.');
   let app;
   try {
     app = new URL(config.publicAppUrl);
@@ -14,7 +14,7 @@ export async function runAttackChecks(config) {
   }
   if (typeof config.sampleMarker !== 'string' || !config.sampleMarker) throw new Error('가상 메모의 확인 표시를 넣어 주세요.');
   const get = (path) => fetch(new URL(path, app), { redirect: 'error', signal: AbortSignal.timeout(10000) });
-  if (config.step === 4) return runStep4Checks(fetch, app, config);
+  if (config.step === 4 || config.step === 5) return runStep4Checks(fetch, app, config);
   if (config.step === 3) return runStep3Checks(fetch, app, config.sampleMarker);
   if (config.step === 2) return runStep2Checks(get, config.sampleMarker);
   const response = await get('/data.json');
@@ -140,6 +140,7 @@ async function runStep3Checks(doFetch, app, marker) {
 //     authenticated 역할의 직접 접근은 심판이 재현할 수 없어 여기서도 보내지 않습니다.
 // (2) 남의 메모 읽기·수정·삭제는 A·B 두 계정의 로그인이 필요합니다. 비밀번호·토큰을 코드에 둘 수 없으므로
 //     이 파일은 보내지 않고 "미실행"으로 적습니다. 학생이 화면에서 직접 확인한 결과는 README에 따로 적습니다.
+// 5단계: 같은 점검이며, (1)의 직접 주소는 aleph.config.json의 originalApiUrl(쿼리 없는 원본 자료 경로)을 씁니다.
 // 상태 번호와 건수만 기록합니다. 심판의 판정이 아니라 학생의 자기 점검입니다.
 async function runStep4Checks(doFetch, app, config) {
   const results = await runStep3Checks(doFetch, app, config.sampleMarker);
@@ -147,13 +148,19 @@ async function runStep4Checks(doFetch, app, config) {
   const expected = 'anon 키로 직접 Data API(/rest/v1/notes)를 읽으면 거부됨(권한 회수)';
   const unknown = (why) => ({ attackId: id, expected, observed: `확인하지 못함 (${why})` });
   try {
-    const base = new URL(config.identityProvider.issuer).origin;
+    // 5단계부터는 설정에 적은 원본 자료 주소(쿼리 없음)를 그대로 쓰고, 읽을 칸과 건수만 쿼리로 줄입니다.
+    const direct = new URL(config.step >= 5 ? config.originalApiUrl
+      : '/rest/v1/notes', new URL(config.identityProvider.issuer).origin);
+    direct.search = '?select=id&limit=1';
     const page = await doFetch(new URL('/', app), { redirect: 'error', signal: AbortSignal.timeout(10000) });
     const key = (await page.text()).match(/sb_publishable_[A-Za-z0-9_-]{8,}/u)?.[0];
-    if (!key) {
+    if (!key && config.step >= 5) {
+      // 5단계부터 화면에는 공개 키가 없습니다(키는 서버에만). 이 파일은 키를 갖지 않으므로 보내지 않습니다.
+      results.push({ attackId: id, expected, observed: '미실행 (화면에 공개 키가 없어 이 파일은 보내지 않음. 원본 직접 요청은 심판이 anon 키로 확인)' });
+    } else if (!key) {
       results.push(unknown('화면에서 공개 키를 찾지 못함'));
     } else {
-      const response = await doFetch(new URL('/rest/v1/notes?select=id&limit=1', base), {
+      const response = await doFetch(direct, {
         redirect: 'error', signal: AbortSignal.timeout(10000), headers: { apikey: key } });
       let data = null;
       try { data = JSON.parse(await response.text()); } catch { /* JSON이 아니면 Data API의 응답으로 보지 않습니다. */ }
@@ -169,6 +176,29 @@ async function runStep4Checks(doFetch, app, config) {
     }
   } catch {
     results.push(unknown('요청을 보내지 못함'));
+  }
+  if (config.step >= 5) {
+    // 가짜 계정으로 서버 로그인을 한 번 보내 거부되는지만 봅니다(실제 비밀번호 없음, 자료가 생기거나 바뀌지 않음).
+    const loginId = 'wrong_password_login_refused';
+    const loginExpected = '존재하지 않는 계정으로 POST /api/login을 보내면 거부됨';
+    try {
+      const response = await doFetch(new URL('/api/login', app), { method: 'POST', redirect: 'error',
+        signal: AbortSignal.timeout(10000), headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'no-such-user@example.invalid', password: 'wrong-password-for-check' }) });
+      let code = null;
+      let appJson = false;
+      try {
+        const data = JSON.parse(await response.text());
+        appJson = data !== null && typeof data === 'object';
+        if (typeof data?.error === 'string') code = data.error;
+      } catch { /* JSON이 아니면 앱의 응답으로 보지 않습니다. */ }
+      results.push({ attackId: loginId, expected: loginExpected,
+        observed: response.status === 401 && code === 'LOGIN_FAILED' ? '거부됨 (HTTP 401)'
+          : response.ok || appJson ? `거부되지 않음 또는 예상 밖 응답 (HTTP ${response.status})`
+            : `확인하지 못함 (HTTP ${response.status}, 앱의 응답으로 보이지 않음)` });
+    } catch {
+      results.push({ attackId: loginId, expected: loginExpected, observed: '확인하지 못함 (요청을 보내지 못함)' });
+    }
   }
   for (const [attackId, what] of [['other_owner_read_refused', '남의 메모 읽기(GET /api/notes/:id)'],
     ['other_owner_update_refused', '남의 메모 수정(PUT /api/notes/:id)'],

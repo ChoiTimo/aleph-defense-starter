@@ -41,7 +41,10 @@ test('build identity uses Vercel Git and deployment metadata', () => {
   const step4 = deploymentIdentity(env, { ...config, step: 4 });
   assert.equal(step4.step, 4);
   assert.equal('sampleMarker' in step4, false);
-  assert.throws(() => deploymentIdentity(env, { ...config, step: 5 }));
+  const step5 = deploymentIdentity(env, { ...config, step: 5 });
+  assert.equal(step5.step, 5);
+  assert.equal('sampleMarker' in step5, false);
+  assert.throws(() => deploymentIdentity(env, { ...config, step: 6 }));
   assert.throws(() => deploymentIdentity({ ...env, VERCEL_GIT_PROVIDER: undefined }, config));
   assert.throws(() => deploymentIdentity({ ...env, VERCEL_GIT_COMMIT_SHA: 'short' }, config));
 });
@@ -196,12 +199,20 @@ function makeApi({ rows = [], configured = true } = {}) {
   return { rows, list: o => call(api.collection, o), item: o => call(api.item, o) };
 }
 
-test('aleph.config.json is at step 4 and names the login issuer and the five real API routes', () => {
-  assert.equal(realConfig.step, 4);
+test('aleph.config.json is at step 5 and names the login issuer and the seven real API routes', () => {
+  assert.equal(realConfig.step, 5);
+  assert.equal(realConfig.originalApiUrl, 'https://vskaxngivuhucmbnoagz.supabase.co/rest/v1/notes');
   assert.doesNotThrow(() => createLoginVerifier({ config: realConfig,
     supabaseClient: { auth: { getClaims: async () => ({}) } } }));
   assert.deepEqual(realConfig.allowedRoutes, ['GET /api/notes', 'POST /api/notes',
-    'GET /api/notes/:id', 'PUT /api/notes/:id', 'DELETE /api/notes/:id']);
+    'GET /api/notes/:id', 'PUT /api/notes/:id', 'DELETE /api/notes/:id', 'POST /api/login', 'POST /api/refresh']);
+  for (const route of realConfig.allowedRoutes) {
+    const [method, path] = route.split(' ');
+    const file = path.replace('/api/', 'api/').replace('/:id', '/[id]') + '.js';
+    const code = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+    assert.match(code, /export default/u, `${route} needs ${file}`);
+    assert.ok(['GET', 'POST', 'PUT', 'DELETE'].includes(method));
+  }
 });
 
 test('every notes route refuses a request without a login token and changes nothing', async () => {
@@ -291,21 +302,13 @@ test('wrong methods get 405 and a missing server configuration stays closed', as
 });
 
 // ---- 3단계 화면: 공식 SDK로 로그인하고, 공개 키만 쓰며, 토큰은 서버(/api/notes)에만 보냅니다 ----
-test('public page logs in through the official SDK with the public key only', () => {
+test('public page has no Supabase key or SDK and only calls this site\'s server functions', () => {
   const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
-  const sdk = readFileSync(new URL('../public/vendor/supabase.js', import.meta.url), 'utf8');
-  const sdkVersion = JSON.parse(readFileSync(
-    new URL('../node_modules/@supabase/supabase-js/package.json', import.meta.url), 'utf8')).version;
-  assert.deepEqual(findSecrets([['public/index.html', html], ['public/vendor/supabase.js', sdk]]), []);
-  assert.equal(sdk, readFileSync(
-    new URL('../node_modules/@supabase/supabase-js/dist/umd/supabase.js', import.meta.url), 'utf8'));
-  assert.match(html, new RegExp(`@supabase/supabase-js ${sdkVersion.replaceAll('.', '\\.')}`, 'u'));
-  assert.match(html, /<script src="\/vendor\/supabase\.js"><\/script>/u);
-  assert.match(html, /signInWithPassword/u);
-  assert.match(html, /auth\.signOut\(/u);
-  assert.match(html, /sb_publishable_/u);
-  assert.equal(/sb_secret_|service_role/u.test(html), false);
-  assert.ok(html.includes(realConfig.identityProvider.issuer.replace('/auth/v1', '')));
+  assert.deepEqual(findSecrets([['public/index.html', html]]), []);
+  assert.equal(/sb_publishable_|sb_secret_|service_role|supabase|createClient|signInWithPassword|\banon\b/iu.test(html), false);
+  assert.equal(/<script src=/u.test(html), false);
+  assert.match(html, /post\('\/api\/login'/u);
+  assert.match(html, /post\('\/api\/refresh'/u);
   assert.match(html, /Authorization: `Bearer \$\{token\}`/u);
   assert.match(html, /api\('GET', '\/api\/notes'\)/u);
   assert.match(html, /api\('POST', '\/api\/notes', \{ title: /u);
@@ -438,7 +441,7 @@ test('step 4: the API code reads no owner from the request and the config lists 
   assert.equal(/request\.(query|body|headers)[^;\n]*owner|req\.[^;\n]*owner/iu.test(code), false);
   assert.equal((code.match(/\.eq\('owner_id', userId\)/gu) ?? []).length, 4);
   assert.deepEqual(realConfig.allowedRoutes, ['GET /api/notes', 'POST /api/notes',
-    'GET /api/notes/:id', 'PUT /api/notes/:id', 'DELETE /api/notes/:id']);
+    'GET /api/notes/:id', 'PUT /api/notes/:id', 'DELETE /api/notes/:id', 'POST /api/login', 'POST /api/refresh']);
 });
 
 test('step 4 SQL files: owner link uses auth.users by email, RLS file revokes then grants four rights with own-row policies', () => {
@@ -493,6 +496,123 @@ test('step 4 attack check adds a direct anon Data API probe and leaves cross-own
     assert.equal(JSON.stringify(open).includes('가상 제목'), false);
     const proxy = await run(() => new Response('Host not in allowlist', { status: 403 }));
     assert.match(proxy.find(item => item.attackId === 'anon_data_api_notes_refused').observed, /^확인하지 못함/u);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('step 5: the direct probe uses originalApiUrl, and the revoke SQL touches only notes and revokes nothing from service_role', async () => {
+  const sql = readFileSync(new URL('../sql/5-notes-revoke-direct.sql', import.meta.url), 'utf8').replace(/--.*$/gmu, '');
+  assert.match(sql, /revoke all on table public\.notes from public, anon, authenticated;/u);
+  assert.equal(/\bgrant\b|\bdrop\b|\btruncate\b|\bfrom\b[^;]*service_role/iu.test(sql.replace(/select[^;]*;/giu, '')), false);
+  assert.equal(/\b(alter|drop|truncate|revoke)\s+(table\s+)?(?!(all on table )?public\.notes\b)/iu.test(sql), false);
+  const originalFetch = globalThis.fetch;
+  const sent = [];
+  globalThis.fetch = async (url) => {
+    const u = new URL(String(url));
+    sent.push(u.host + u.pathname + u.search);
+    if (u.host.endsWith('.supabase.co')) return new Response(JSON.stringify({ code: '42501' }), { status: 401 });
+    if (u.pathname === '/') return new Response('sb_publishable_TESTKEY123456', { status: 200 });
+    if (u.pathname === '/data.json') return new Response('Not Found', { status: 404 });
+    return new Response(JSON.stringify({ error: 'LOGIN_REQUIRED' }), { status: 401 });
+  };
+  try {
+    const out = await runAttackChecks({ ...config, ...realConfig });
+    assert.ok(sent.includes('vskaxngivuhucmbnoagz.supabase.co/rest/v1/notes?select=id&limit=1'));
+    assert.match(out.find(item => item.attackId === 'anon_data_api_notes_refused').observed, /^거부됨/u);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+// ---- 5단계: 서버 로그인 ----
+const { createAuthApi } = await import('../src/auth-api.mjs');
+const fakeAuth = (upstream) => {
+  const sent = [];
+  const api = createAuthApi({
+    getSettings: () => ({ url: 'https://example-project.supabase.co', secretKey: 'fake-server-key-for-test' }),
+    fetchImpl: async (url, init) => { sent.push({ url, init }); return upstream(url, init); },
+  });
+  const call = async (handler, { method = 'POST', body } = {}) => {
+    const out = { headers: {} };
+    const response = { setHeader: (k, v) => { out.headers[k] = v; },
+      status: (code) => { out.status = code; return { json: (b) => { out.body = b; return out; } }; } };
+    return handler({ method, body }, response);
+  };
+  return { api, sent, call };
+};
+const goodSession = () => new Response(JSON.stringify({ access_token: 'AT', refresh_token: 'RT', expires_at: 1900000000,
+  expires_in: 3600, token_type: 'bearer', user: { id: A, email: 'a@test.invalid', role: 'authenticated' } }), { status: 200 });
+
+test('step 5 server login: sends the password only to the Supabase token URL and returns just the session fields', async () => {
+  const { api, sent, call } = fakeAuth(goodSession);
+  const result = await call(api.login, { body: { email: ' a@test.invalid ', password: 'pw-for-test', owner_id: B } });
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body, { access_token: 'AT', refresh_token: 'RT', expires_at: 1900000000, email: 'a@test.invalid' });
+  assert.equal(result.headers['Cache-Control'], 'no-store');
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].url, 'https://example-project.supabase.co/auth/v1/token?grant_type=password');
+  assert.deepEqual(JSON.parse(sent[0].init.body), { email: 'a@test.invalid', password: 'pw-for-test' });
+  const refreshed = await call(api.refresh, { body: { refresh_token: 'RT' } });
+  assert.equal(refreshed.status, 200);
+  assert.equal(sent[1].url, 'https://example-project.supabase.co/auth/v1/token?grant_type=refresh_token');
+});
+
+test('step 5 server login: wrong password, bad input, wrong method, upstream failure and missing settings all stay closed', async () => {
+  const wrong = fakeAuth(() => new Response(JSON.stringify({ error_code: 'invalid_credentials', msg: 'secret detail' }), { status: 400 }));
+  const denied = await wrong.call(wrong.api.login, { body: { email: 'a@test.invalid', password: 'x' } });
+  assert.equal(denied.status, 401);
+  assert.deepEqual(denied.body, { error: 'LOGIN_FAILED', reason: 'invalid_credentials' });
+  const odd = fakeAuth(() => new Response(JSON.stringify({ error_code: 'something_internal' }), { status: 400 }));
+  assert.equal((await odd.call(odd.api.login, { body: { email: 'a@test.invalid', password: 'x' } })).body.reason, 'unknown');
+  const refreshDenied = await wrong.call(wrong.api.refresh, { body: { refresh_token: 'old' } });
+  assert.deepEqual([refreshDenied.status, refreshDenied.body.error], [401, 'LOGIN_REQUIRED']);
+  for (const body of [undefined, {}, { email: 'not-an-email', password: 'x' }, { email: 'a@test.invalid' },
+    { email: 'a@test.invalid', password: 'x'.repeat(300) }, '[]', 'not json']) {
+    const r = await wrong.call(wrong.api.login, { body });
+    assert.equal(r.status, 400);
+  }
+  assert.equal(wrong.sent.length, 2);  // 잘못된 입력은 Supabase로 보내지 않았습니다.
+  assert.equal((await wrong.call(wrong.api.login, { method: 'GET' })).status, 405);
+  const down = fakeAuth(() => { throw new Error('network'); });
+  assert.equal((await down.call(down.api.login, { body: { email: 'a@test.invalid', password: 'x' } })).status, 502);
+  const html500 = fakeAuth(() => new Response('oops', { status: 500 }));
+  assert.equal((await html500.call(html500.api.login, { body: { email: 'a@test.invalid', password: 'x' } })).status, 502);
+  const none = createAuthApi({ getSettings: () => { throw new Error('missing_env'); }, fetchImpl: () => assert.fail('no call') });
+  const closed = await fakeAuth(goodSession).call(none.login, { body: { email: 'a@test.invalid', password: 'x' } });
+  assert.deepEqual([closed.status, closed.body], [500, { error: 'SERVER_NOT_CONFIGURED' }]);
+  const text = JSON.stringify([denied, refreshDenied]);
+  assert.equal(/secret detail|fake-server-key/u.test(text), false);
+});
+
+test('step 5: /aleph.json lists the allowed routes and the original API address; the page has no key', () => {
+  const identity = deploymentIdentity(env, { ...realConfig, step: 5 });
+  assert.deepEqual(identity.allowedRoutes, realConfig.allowedRoutes);
+  assert.equal(identity.originalApiUrl, realConfig.originalApiUrl);
+  assert.equal(findSecrets([['aleph.json', JSON.stringify(identity)]]).length, 0);
+  assert.equal('allowedRoutes' in deploymentIdentity(env, { ...realConfig, step: 2 }), false);
+  assert.equal('originalApiUrl' in deploymentIdentity(env, { ...realConfig, step: 4 }), false);
+  assert.equal('allowedRoutes' in deploymentIdentity(env, { ...realConfig, allowedRoutes: ['bad route'] }), false);
+});
+
+test('step 5 attack check: with no key in the page the direct probe is not run, and a wrong-password login probe is refused', async () => {
+  const originalFetch = globalThis.fetch;
+  const sent = [];
+  globalThis.fetch = async (url, init = {}) => {
+    const u = new URL(String(url));
+    sent.push(`${init.method ?? 'GET'} ${u.host}${u.pathname}`);
+    if (u.pathname === '/') return new Response('<html>no key here</html>', { status: 200 });
+    if (u.pathname === '/data.json') return new Response('Not Found', { status: 404 });
+    if (u.pathname === '/api/login') return new Response(JSON.stringify({ error: 'LOGIN_FAILED' }), { status: 401 });
+    return new Response(JSON.stringify({ error: 'LOGIN_REQUIRED' }), { status: 401 });
+  };
+  try {
+    const out = await runAttackChecks({ ...config, ...realConfig });
+    assert.ok(out.length <= 20);
+    assert.match(out.find(i => i.attackId === 'anon_data_api_notes_refused').observed, /^미실행/u);
+    assert.equal(out.find(i => i.attackId === 'wrong_password_login_refused').observed, '거부됨 (HTTP 401)');
+    assert.equal(sent.some(item => item.includes('supabase.co')), false);
+    assert.equal(JSON.stringify(out).includes('wrong-password-for-check'), false);
   } finally {
     globalThis.fetch = originalFetch;
   }
