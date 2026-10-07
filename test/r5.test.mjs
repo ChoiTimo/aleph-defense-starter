@@ -111,3 +111,90 @@ test('vercel.json adds the nosniff security header to every response', () => {
   const all = rules.find(rule => rule.source === '/(.*)');
   assert.ok(all.headers.some(h => h.key === 'X-Content-Type-Options' && h.value === 'nosniff'));
 });
+
+// ---- 3단계: /api/notes는 서버가 검증한 로그인 요청에만 답합니다 ----
+const realConfig = JSON.parse(readFileSync(new URL('../aleph.config.json', import.meta.url), 'utf8'));
+
+const b64 = value => Buffer.from(JSON.stringify(value)).toString('base64url');
+const fakeToken = payload => `${b64({ alg: 'ES256', typ: 'JWT' })}.${b64(payload)}.c2ln`;
+const nowSec = () => Math.floor(Date.now() / 1000);
+const studentClaims = (extra = {}) => ({
+  iss: realConfig.identityProvider.issuer, aud: realConfig.identityProvider.audience,
+  role: 'authenticated', sub: '11111111-1111-4111-8111-111111111111',
+  exp: nowSec() + 600, ...extra,
+});
+
+function fakeNotesClient(rows) {
+  const chain = { select: () => chain, order: () => chain,
+    then: (resolve, reject) => Promise.resolve({ data: rows, error: null }).then(resolve, reject) };
+  return { from: () => chain };
+}
+
+async function callNotes({ method = 'GET', authorization, claimsResult, configured = true } = {}) {
+  const { createNotesHandler } = await import('../api/notes.js');
+  const { createLoginVerifier } = await import('../src/verify-login.mjs');
+  const rows = [{ title: '가상 제목', content: '가상 본문' }];
+  const verify = createLoginVerifier({ config: realConfig, supabaseClient: {
+    auth: { getClaims: async () => claimsResult ?? { data: null, error: new Error('bad') } } } });
+  const handler = createNotesHandler({
+    getVerifier: () => { if (!configured) throw new Error('missing_env'); return verify; },
+    getSupabase: () => fakeNotesClient(rows),
+  });
+  const out = { headers: {} };
+  const response = {
+    setHeader: (name, value) => { out.headers[name] = value; },
+    status: code => { out.status = code; return response; },
+    json: body => { out.body = body; return response; },
+  };
+  await handler({ method, headers: authorization ? { authorization } : {} }, response);
+  return out;
+}
+
+test('aleph.config.json names the student login issuer in the shape the verifier accepts', async () => {
+  const { createLoginVerifier } = await import('../src/verify-login.mjs');
+  assert.doesNotThrow(() => createLoginVerifier({ config: realConfig,
+    supabaseClient: { auth: { getClaims: async () => ({}) } } }));
+  assert.equal(realConfig.step, 2);
+});
+
+test('/api/notes refuses a request without a login token', async () => {
+  const result = await callNotes();
+  assert.equal(result.status, 401);
+  assert.deepEqual(result.body, { error: 'LOGIN_REQUIRED' });
+  assert.equal(result.headers['WWW-Authenticate'], 'Bearer');
+});
+
+test('/api/notes refuses forged, expired and other-service tokens', async () => {
+  const authorization = `Bearer ${fakeToken(studentClaims())}`;
+  const forged = await callNotes({ authorization }); // 서명 검증 실패
+  assert.equal(forged.status, 401);
+  const expired = await callNotes({ authorization,
+    claimsResult: { data: { claims: studentClaims({ exp: nowSec() - 60 }) }, error: null } });
+  assert.equal(expired.status, 401);
+  const otherAudience = await callNotes({ authorization,
+    claimsResult: { data: { claims: studentClaims({ aud: 'other-service' }) }, error: null } });
+  assert.equal(otherAudience.status, 401);
+  const otherIssuer = await callNotes({
+    authorization: `Bearer ${fakeToken(studentClaims({ iss: 'https://other.supabase.co/auth/v1' }))}`,
+    claimsResult: { data: { claims: studentClaims() }, error: null } });
+  assert.equal(otherIssuer.status, 401);
+  for (const result of [forged, expired, otherAudience, otherIssuer]) {
+    assert.deepEqual(result.body, { error: 'LOGIN_REQUIRED' });
+    assert.equal(JSON.stringify(result.body).includes('가상 본문'), false);
+  }
+});
+
+test('/api/notes answers a verified student token with title and content only', async () => {
+  const result = await callNotes({ authorization: `Bearer ${fakeToken(studentClaims())}`,
+    claimsResult: { data: { claims: studentClaims() }, error: null } });
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body, { notes: [{ title: '가상 제목', content: '가상 본문' }] });
+});
+
+test('/api/notes stays closed when the server is not configured or the method is not GET', async () => {
+  const closed = await callNotes({ configured: false,
+    authorization: `Bearer ${fakeToken(studentClaims())}` });
+  assert.equal(closed.status, 500);
+  assert.deepEqual(closed.body, { error: 'SERVER_NOT_CONFIGURED' });
+  assert.equal((await callNotes({ method: 'POST' })).status, 405);
+});
