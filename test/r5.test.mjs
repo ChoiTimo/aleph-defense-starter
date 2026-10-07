@@ -198,3 +198,23 @@ test('/api/notes stays closed when the server is not configured or the method is
   assert.deepEqual(closed.body, { error: 'SERVER_NOT_CONFIGURED' });
   assert.equal((await callNotes({ method: 'POST' })).status, 405);
 });
+
+// ---- 3단계 화면: 공식 SDK로 로그인하고, 공개 키만 쓰며, 토큰은 서버(/api/notes)에만 보냅니다 ----
+test('public page logs in through the official SDK with the public key only', () => {
+  const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
+  const sdk = readFileSync(new URL('../public/vendor/supabase.js', import.meta.url), 'utf8');
+  const sdkVersion = JSON.parse(readFileSync(
+    new URL('../node_modules/@supabase/supabase-js/package.json', import.meta.url), 'utf8')).version;
+  assert.deepEqual(findSecrets([['public/index.html', html], ['public/vendor/supabase.js', sdk]]), []);
+  assert.equal(sdk, readFileSync(
+    new URL('../node_modules/@supabase/supabase-js/dist/umd/supabase.js', import.meta.url), 'utf8'));
+  assert.match(html, new RegExp(`@supabase/supabase-js ${sdkVersion.replaceAll('.', '\\.')}`, 'u'));
+  assert.match(html, /<script src="\/vendor\/supabase\.js"><\/script>/u);
+  assert.match(html, /signInWithPassword/u);
+  assert.match(html, /auth\.signOut\(/u);
+  assert.match(html, /sb_publishable_/u);
+  assert.equal(/sb_secret_|service_role/u.test(html), false);
+  assert.ok(html.includes(realConfig.identityProvider.issuer.replace('/auth/v1', '')));
+  assert.match(html, /fetch\('\/api\/notes'[\s\S]*Authorization: `Bearer \$\{accessToken\}`/u);
+  assert.equal(/innerHTML|\/data\.json|esm\.sh|cdn\./u.test(html), false);
+});
