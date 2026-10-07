@@ -190,14 +190,15 @@
 | --- | --- | --- | --- |
 | 서버 함수에서 A의 읽기·추가·수정·삭제 | `npm run test:r5` (가짜 DB) | 21건 통과 | 실행함 (2026-10-07) |
 | 비밀값 검사 | `npm run check:secrets` | 키처럼 보이는 문자열 없음 | 실행함 (2026-10-07) |
-| 권한 회수 SQL 적용·전후 대조 | SQL Editor [A]→[B]→[C] | — | **미실행** (학생이 학습 DB에서 실행해야 함) |
+| 권한 회수 SQL 적용·전후 대조 | SQL Editor [A]→[B]→[C] `has_table_privilege` 표 | 적용 전: `anon` 전부 `false`, `authenticated`·`service_role` 4개 `true`. 적용(`Success. No rows returned`) 뒤: `anon`·`authenticated` 전부 `false`, `service_role` 4개 `true`. `rls_on`은 `true` | 학생이 실행·확인함 (2026-10-07 14:27~14:32) |
+| `anon` 역할 직접 읽기 | SQL Editor [D-1] | `42501: permission denied for table notes` (`authenticated`는 따로 확인하지 않음) | 학생이 실행·확인함 (2026-10-07 14:28) |
 | 배포 화면: A 정상·B 거부·무로그인 | 브라우저 | — | **미실행** |
 | anon 키로 원본 주소 직접 요청 | `npm run bundle`의 `anon_data_api_notes_refused` | — | 코딩 도구 환경에서는 접속 불가라 확인하지 못함 |
 | 포털 판정(점수) | 포털 | 코딩 도구는 볼 수 없음 | 확인하지 못함 |
 
 ### 5단계 저장점: 지금 작동하는 기능과 다시 실행하는 방법
 
-- 작동하는 기능: 4단계의 로그인·소유자 검사에 더해, 메모 자료 요청이 서버 함수 한곳으로 모였고 직접 권한을 거두는 SQL을 준비했습니다(**SQL은 아직 적용 전**).
+- 작동하는 기능: 4단계의 로그인·소유자 검사에 더해, 메모 자료 요청이 서버 함수 한곳으로 모였고 직접 권한을 거두는 SQL을 준비했습니다(SQL은 학생이 2026-10-07 학습 DB에 적용함).
 - 설정 대조(2026-10-07): `step` 5, `repoUrl`은 Git `origin`과 같은 주소, `publicAppUrl`은 실제 배포 주소, `judgeIssuer`는 바꾸지 않음, `identityProvider`는 4단계와 같음, `allowedRoutes` 5개는 실제 파일과 일치, `originalApiUrl`은 위 주소. `RULE_IDS`는 `starter.deny` 하나뿐입니다.
 - 다시 실행: `npm run test:r5`, `npm run check:secrets`, 일반 커밋 위에서 `npm run bundle`(커밋하지 않는 `bundle-notes.json`의 `explanation` 필요, 결과 `artifacts/submission.json`도 커밋하지 않음).
 
