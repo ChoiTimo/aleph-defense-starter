@@ -1,9 +1,12 @@
-// 3단계 제작 3: 로그인한 사용자의 가상 메모를 추가·조회·수정·삭제하는 서버 코드입니다.
+// 로그인한 사용자의 가상 메모를 추가·조회·수정·삭제하는 서버 코드입니다. (3단계 제작 3, 4단계 제작 2에서 소유자 검사 추가)
 // - 요청자는 Authorization 토큰을 src/verify-login.mjs로 검사해 확인합니다.
-//   브라우저가 보낸 userId·role·owner_id는 읽지도 믿지도 않습니다.
+//   브라우저가 보낸 userId·role·owner_id는 URL·쿼리·본문 어디에 있어도 읽지도 믿지도 않습니다.
+// - 소유자 검사: 모든 읽기·수정·삭제 조건에 "owner_id = 서버가 확인한 사용자 ID"를 함께 넣습니다.
+//   남의 메모는 없는 메모와 똑같이 404로 답해서 그 id가 존재하는지도 알려 주지 않습니다.
+//   (조건을 한 질의에 넣어서 확인과 변경 사이에 끼어들 틈이 없습니다.)
 // - POST는 서버가 확인한 사용자 ID를 owner_id로 저장합니다.
-// - 아직 소유자 검사는 하지 않습니다. 로그인한 사용자라면 id를 알 때 다른 사람의 메모도
-//   GET·PUT·DELETE 할 수 있습니다. 이 허점은 4단계에서 고칩니다.
+// - PUT은 기존 행의 owner_id가 본인일 때만 바꾸고, 새 행의 owner_id도 본인 ID로 고정합니다(소유자 변경 불가).
+// - owner_id가 비어 있는 처음 메모는 누구와도 일치하지 않아 아무도 접근하지 못합니다.
 // 키·토큰 값은 응답·로그에 넣지 않습니다.
 import { createClient } from '@supabase/supabase-js';
 import config from '../aleph.config.json' with { type: 'json' };
@@ -99,24 +102,28 @@ export function createNotesApi({ getVerifier, getSupabase }) {
   });
 
   // GET /api/notes/:id, PUT /api/notes/:id, DELETE /api/notes/:id
-  const item = guarded(['GET', 'PUT', 'DELETE'], async ({ request, response, supabase }) => {
+  const item = guarded(['GET', 'PUT', 'DELETE'], async ({ request, response, supabase, userId }) => {
     const id = idFromRequest(request);
     if (typeof id !== 'string' || !UUID.test(id)) return response.status(400).json({ error: 'INVALID_ID' });
     const notFound = () => response.status(404).json({ error: 'NOT_FOUND' });
     if (request.method === 'GET') {
-      const { data, error } = await supabase.from('notes').select('id, title, content').eq('id', id).maybeSingle();
+      const { data, error } = await supabase.from('notes').select('id, title, content')
+        .eq('id', id).eq('owner_id', userId).maybeSingle();
       if (error) return failed(response, error, '읽기');
       return data ? response.status(200).json(toPublic(data)) : notFound();
     }
     if (request.method === 'PUT') {
       const note = readNote(request.body, { allowId: false });
       if (!note) return response.status(400).json({ error: 'INVALID_BODY' });
+      // 기존 행(owner_id = 본인)만 고르고, 새 값의 owner_id도 본인으로 고정합니다.
       const { data, error } = await supabase.from('notes')
-        .update({ title: note.title, content: note.body }).eq('id', id).select('id, title, content');
+        .update({ title: note.title, content: note.body, owner_id: userId })
+        .eq('id', id).eq('owner_id', userId).select('id, title, content');
       if (error) return failed(response, error, '수정');
       return data?.length ? response.status(200).json(toPublic(data[0])) : notFound();
     }
-    const { data, error } = await supabase.from('notes').delete().eq('id', id).select('id');
+    const { data, error } = await supabase.from('notes').delete()
+      .eq('id', id).eq('owner_id', userId).select('id');
     if (error) return failed(response, error, '삭제');
     return data?.length ? response.status(200).json({ id: data[0].id }) : notFound();
   });

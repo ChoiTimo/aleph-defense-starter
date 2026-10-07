@@ -7,8 +7,8 @@ const root = resolve(import.meta.dirname, '..');
 const source = resolve(root, 'data.json');
 const output = resolve(root, 'public', 'data.json');
 const config = JSON.parse(await readFile(resolve(root, 'aleph.config.json'), 'utf8'));
-if (![1, 2, 3].includes(config.step)) {
-  throw new Error('4단계 이후의 빌드 흐름은 해당 단계에서 확인하세요(공개 data.json 복사는 2단계부터 끝났습니다).');
+if (![1, 2, 3, 4].includes(config.step)) {
+  throw new Error('5단계 이후의 빌드 흐름은 해당 단계에서 확인하세요(공개 data.json 복사는 2단계부터 끝났습니다).');
 }
 if (config.step === 1) {
   // 1단계 전용: 공개 가상 자료를 public/data.json으로 복사합니다. 2단계부터는 복사를 끝냅니다.
