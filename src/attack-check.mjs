@@ -154,7 +154,10 @@ async function runStep4Checks(doFetch, app, config) {
     direct.search = '?select=id&limit=1';
     const page = await doFetch(new URL('/', app), { redirect: 'error', signal: AbortSignal.timeout(10000) });
     const key = (await page.text()).match(/sb_publishable_[A-Za-z0-9_-]{8,}/u)?.[0];
-    if (!key) {
+    if (!key && config.step >= 5) {
+      // 5단계부터 화면에는 공개 키가 없습니다(키는 서버에만). 이 파일은 키를 갖지 않으므로 보내지 않습니다.
+      results.push({ attackId: id, expected, observed: '미실행 (화면에 공개 키가 없어 이 파일은 보내지 않음. 원본 직접 요청은 심판이 anon 키로 확인)' });
+    } else if (!key) {
       results.push(unknown('화면에서 공개 키를 찾지 못함'));
     } else {
       const response = await doFetch(direct, {
@@ -173,6 +176,29 @@ async function runStep4Checks(doFetch, app, config) {
     }
   } catch {
     results.push(unknown('요청을 보내지 못함'));
+  }
+  if (config.step >= 5) {
+    // 가짜 계정으로 서버 로그인을 한 번 보내 거부되는지만 봅니다(실제 비밀번호 없음, 자료가 생기거나 바뀌지 않음).
+    const loginId = 'wrong_password_login_refused';
+    const loginExpected = '존재하지 않는 계정으로 POST /api/login을 보내면 거부됨';
+    try {
+      const response = await doFetch(new URL('/api/login', app), { method: 'POST', redirect: 'error',
+        signal: AbortSignal.timeout(10000), headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'no-such-user@example.invalid', password: 'wrong-password-for-check' }) });
+      let code = null;
+      let appJson = false;
+      try {
+        const data = JSON.parse(await response.text());
+        appJson = data !== null && typeof data === 'object';
+        if (typeof data?.error === 'string') code = data.error;
+      } catch { /* JSON이 아니면 앱의 응답으로 보지 않습니다. */ }
+      results.push({ attackId: loginId, expected: loginExpected,
+        observed: response.status === 401 && code === 'LOGIN_FAILED' ? '거부됨 (HTTP 401)'
+          : response.ok || appJson ? `거부되지 않음 또는 예상 밖 응답 (HTTP ${response.status})`
+            : `확인하지 못함 (HTTP ${response.status}, 앱의 응답으로 보이지 않음)` });
+    } catch {
+      results.push({ attackId: loginId, expected: loginExpected, observed: '확인하지 못함 (요청을 보내지 못함)' });
+    }
   }
   for (const [attackId, what] of [['other_owner_read_refused', '남의 메모 읽기(GET /api/notes/:id)'],
     ['other_owner_update_refused', '남의 메모 수정(PUT /api/notes/:id)'],

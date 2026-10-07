@@ -178,21 +178,24 @@
 `aleph.config.json`은 `step` 5입니다.
 
 - **브라우저**: `public/index.html`은 `client.auth.*`(로그인·로그아웃·세션)만 Supabase에 부르고, 메모 읽기·추가·수정·삭제는 모두 `fetch('/api/notes…')`로 서버 함수만 부릅니다. Supabase 자료를 직접 읽거나 고치는 호출은 없습니다(제작 1에서 확인, 파일 변경 없음).
-- **서버 함수**: 로그인·소유자 검사와 서버 전용 키 설정은 4단계 그대로입니다. 로컬 시험 `npm run test:r5` 21건 통과(가짜 DB).
+- **서버 함수**: 로그인·소유자 검사와 서버 전용 키 설정은 4단계 그대로입니다. 로컬 시험 `npm run test:r5` 25건 통과(가짜 DB).
 - **직접 권한 회수 SQL**: [`sql/5-notes-revoke-direct.sql`](sql/5-notes-revoke-direct.sql)은 `public.notes`만 다룹니다. `revoke all … from public, anon, authenticated` 한 줄이 핵심이고, 서버 함수가 쓰는 `service_role`은 대상이 아닙니다. RLS와 4단계 정책 4개는 그대로 둡니다. 적용 전 [A]·적용 후 [C]에서 `has_table_privilege`로 `anon`·`authenticated`가 전부 `false`, `service_role`이 `true`인지 대조합니다.
 - **원본 자료 주소**: `originalApiUrl`은 `https://vskaxngivuhucmbnoagz.supabase.co/rest/v1/notes`(쿼리 없음)입니다. 심판이 anon 키로 이 주소를 직접 불러 확인합니다.
 - `src/attack-check.mjs`는 5단계에서 직접 점검 주소로 `originalApiUrl`을 씁니다. 나머지 점검은 4단계와 같고, 남의 메모 3건은 미실행입니다.
-- 아직 알려지지 않은 점: 화면(`public/index.html`)에는 로그인(Auth)에 필요한 Supabase 공개 키(`sb_publishable_…`)가 있습니다. 로그인 호출은 그대로 두기로 해서 남겨 두었습니다.
+- **로그인도 서버 함수로 옮겼습니다**: 화면(`public/index.html`)에는 Supabase 주소·공개 키·SDK가 없고(`public/vendor/supabase.js` 삭제), `POST /api/login`(이메일·비밀번호)과 `POST /api/refresh`(로그인 유지)로만 로그인합니다. 처리는 `src/auth-api.mjs`이며 서버 전용 키는 기존 환경변수 `SUPABASE_SECRET_KEY`를 그대로 씁니다(새 환경변수 없음). 응답은 `access_token`·`refresh_token`·`expires_at`·`email`만 돌려주고, 실패는 401 `LOGIN_FAILED`(이유 코드만)입니다. 토큰은 이 탭의 `sessionStorage`에만 둡니다. 로그인 토큰의 검사와 소유자 검사(`src/verify-login.mjs`, `src/notes-api.mjs`)는 그대로입니다.
+- `allowedRoutes`는 이제 7개입니다(메모 5개 + `POST /api/login`, `POST /api/refresh`). 실제 파일(`api/login.js`, `api/refresh.js` 포함)과 일치하며, 배포되는 `/aleph.json`에도 `allowedRoutes`와 `originalApiUrl`이 들어갑니다(`scripts/deployment-identity.mjs`, 비밀 아님).
+- 5단계 저장점 뒤 고친 것: 빌드가 `step` 5를 허용하지 않아 Vercel 배포가 실패했던 문제(`scripts/build-public.mjs`, `scripts/deployment-identity.mjs`).
+- (4단계까지의 로그인 화면은 공식 SDK를 브라우저에서 썼습니다. 위 내용이 현재 상태입니다.)
 
 ### 5단계 확인 기록
 
 | 항목 | 방법 | 결과 | 실행 여부 |
 | --- | --- | --- | --- |
-| 서버 함수에서 A의 읽기·추가·수정·삭제 | `npm run test:r5` (가짜 DB) | 21건 통과 | 실행함 (2026-10-07) |
+| 서버 함수에서 A의 읽기·추가·수정·삭제, 서버 로그인 | `npm run test:r5` (가짜 DB·가짜 Supabase 응답) | 25건 통과 | 실행함 (2026-10-07) |
 | 비밀값 검사 | `npm run check:secrets` | 키처럼 보이는 문자열 없음 | 실행함 (2026-10-07) |
 | 권한 회수 SQL 적용·전후 대조 | SQL Editor [A]→[B]→[C] `has_table_privilege` 표 | 적용 전: `anon` 전부 `false`, `authenticated`·`service_role` 4개 `true`. 적용(`Success. No rows returned`) 뒤: `anon`·`authenticated` 전부 `false`, `service_role` 4개 `true`. `rls_on`은 `true` | 학생이 실행·확인함 (2026-10-07 14:27~14:32) |
 | `anon` 역할 직접 읽기 | SQL Editor [D-1] | `42501: permission denied for table notes` (`authenticated`는 따로 확인하지 않음) | 학생이 실행·확인함 (2026-10-07 14:28) |
-| 배포 화면: A 정상·B 거부·무로그인 | 브라우저 | — | **미실행** |
+| 배포 화면: 서버 로그인, A 정상·B 거부·무로그인 | 브라우저 | — | **미실행** (서버 로그인은 실제 Supabase에 아직 보내 본 적 없음) |
 | anon 키로 원본 주소 직접 요청 | `npm run bundle`의 `anon_data_api_notes_refused` | — | 코딩 도구 환경에서는 접속 불가라 확인하지 못함 |
 | 포털 판정(점수) | 포털 | 코딩 도구는 볼 수 없음 | 확인하지 못함 |
 
