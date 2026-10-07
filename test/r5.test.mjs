@@ -198,3 +198,16 @@ test('/api/notes stays closed when the server is not configured or the method is
   assert.deepEqual(closed.body, { error: 'SERVER_NOT_CONFIGURED' });
   assert.equal((await callNotes({ method: 'POST' })).status, 405);
 });
+
+// ---- 3단계 화면: 공개 키만 쓰고, 토큰은 서버(/api/notes)에만 보냅니다 ----
+test('public page logs in with the public key only and sends the token only to /api/notes', () => {
+  const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
+  assert.deepEqual(findSecrets([['public/index.html', html]]), []);
+  assert.match(html, /sb_publishable_/u);
+  assert.equal(/sb_secret_|service_role/u.test(html), false);
+  assert.ok(html.includes(realConfig.identityProvider.issuer));
+  assert.match(html, /fetch\('\/api\/notes'[\s\S]*Authorization: `Bearer \$\{session\.access_token\}`/u);
+  assert.equal(/localStorage/u.test(html), false);
+  assert.equal(/innerHTML/u.test(html), false);
+  assert.equal(/\/data\.json/u.test(html), false);
+});
