@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { deploymentIdentity } from '../scripts/deployment-identity.mjs';
 import { runAttackChecks } from '../src/attack-check.mjs';
+import { readFileSync } from 'node:fs';
 import { findSecrets } from '../scripts/secret-scan.mjs';
 
 const config = {
@@ -103,4 +104,10 @@ test('secret scan finds key-like values without printing them, and ignores expla
   assert.equal(found.length, 4);
   assert.ok(found.every(line => !line.includes('AAAA') && !line.includes('aaaa')));
   assert.deepEqual(findSecrets([['ok', 'sb_secret_… 키는 Vercel에만 둡니다. eyJ로 시작하는 값도 적지 않습니다.']]), []);
+});
+
+test('vercel.json adds the nosniff security header to every response', () => {
+  const rules = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8')).headers;
+  const all = rules.find(rule => rule.source === '/(.*)');
+  assert.ok(all.headers.some(h => h.key === 'X-Content-Type-Options' && h.value === 'nosniff'));
 });
