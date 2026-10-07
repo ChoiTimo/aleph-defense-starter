@@ -35,7 +35,10 @@ test('build identity uses Vercel Git and deployment metadata', () => {
   const step2 = deploymentIdentity(env, { ...config, step: 2 });
   assert.equal(step2.step, 2);
   assert.equal('sampleMarker' in step2, false);
-  assert.throws(() => deploymentIdentity(env, { ...config, step: 3 }));
+  const step3 = deploymentIdentity(env, { ...config, step: 3 });
+  assert.equal(step3.step, 3);
+  assert.equal('sampleMarker' in step3, false);
+  assert.throws(() => deploymentIdentity(env, { ...config, step: 4 }));
   assert.throws(() => deploymentIdentity({ ...env, VERCEL_GIT_PROVIDER: undefined }, config));
   assert.throws(() => deploymentIdentity({ ...env, VERCEL_GIT_COMMIT_SHA: 'short' }, config));
 });
@@ -190,7 +193,8 @@ function makeApi({ rows = [], configured = true } = {}) {
   return { rows, list: o => call(api.collection, o), item: o => call(api.item, o) };
 }
 
-test('aleph.config.json names the login issuer and the five real API routes', () => {
+test('aleph.config.json is at step 3 and names the login issuer and the five real API routes', () => {
+  assert.equal(realConfig.step, 3);
   assert.doesNotThrow(() => createLoginVerifier({ config: realConfig,
     supabaseClient: { auth: { getClaims: async () => ({}) } } }));
   assert.deepEqual(realConfig.allowedRoutes, ['GET /api/notes', 'POST /api/notes',
@@ -306,4 +310,41 @@ test('public page logs in through the official SDK with the public key only', ()
   assert.match(html, /api\('DELETE', `\/api\/notes\/\$\{note\.id\}`\)/u);
   assert.equal(/owner_id|userId|role:/u.test(html.replace(/\/\/.*$/gmu, '')), false);
   assert.equal(/innerHTML|\/data\.json|esm\.sh|cdn\./u.test(html), false);
+});
+
+test('step 3 attack check sends only refusal probes and records status numbers, never bodies or tokens', async () => {
+  const originalFetch = globalThis.fetch;
+  const sent = [];
+  const run = async (apiStatus) => {
+    sent.length = 0;
+    globalThis.fetch = async (url, init = {}) => {
+      const path = new URL(String(url)).pathname;
+      sent.push({ method: init.method ?? 'GET', path, auth: init.headers?.Authorization, body: init.body });
+      if (path === '/data.json') return new Response('Not Found', { status: 404 });
+      if (path === '/aleph.json') return new Response(JSON.stringify({ step: 3 }), { status: 200 });
+      return new Response(JSON.stringify({ error: 'LOGIN_REQUIRED', secret: '가상 본문' }), { status: apiStatus });
+    };
+    return runAttackChecks({ ...config, step: 3 });
+  };
+  try {
+    const results = await run(401);
+    assert.deepEqual(results.map(item => item.attackId), ['public_data_json_no_notes', 'static_marker_absent',
+      'anonymous_notes_list_refused', 'anonymous_note_create_refused', 'anonymous_note_read_refused',
+      'anonymous_note_update_refused', 'anonymous_note_delete_refused', 'forged_token_refused',
+      'expired_token_refused', 'other_issuer_token_refused']);
+    assert.ok(results.slice(2).every(item => item.observed === '거부됨 (HTTP 401)'));
+    assert.ok(results.every(item => Object.keys(item).sort().join() === 'attackId,expected,observed'
+      && item.expected.length <= 300 && item.observed.length <= 300));
+    assert.equal(JSON.stringify(results).includes('가상 본문'), false);
+    assert.equal(JSON.stringify(results).includes('Bearer'), false);
+    // 쓰기 요청은 빈 본문이거나 존재하지 않는 id라서 로그인 확인이 뚫려도 자료가 생기거나 바뀌지 않습니다.
+    const writes = sent.filter(item => ['POST', 'PUT', 'DELETE'].includes(item.method));
+    assert.deepEqual(writes.map(item => item.method), ['POST', 'PUT', 'DELETE']);
+    assert.ok(writes.filter(item => item.body !== undefined).every(item => item.body === '{}'));
+    assert.ok(writes.slice(1).every(item => item.path === '/api/notes/00000000-0000-4000-8000-000000000000'));
+    const open = await run(200);
+    assert.ok(open.slice(2).every(item => item.observed === '거부되지 않음 (HTTP 200)'));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
