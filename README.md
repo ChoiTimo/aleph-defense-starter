@@ -134,7 +134,7 @@
 
 ## 4단계: 로그인해도 내 자료만 보이게 합니다
 
-`aleph.config.json`은 `step` 4입니다. 로그인한 A와 B는 각자 자기 메모만 읽고 추가·수정·삭제하고, 남의 메모 접근과 소유자 변경은 거부됩니다. (처음 가상 메모 중 A의 세 건에 `owner_id`를 연결하는 SQL과 DB 권한 SQL은 학생이 SQL Editor에서 직접 실행합니다. 이 저장소는 SQL을 만들어 두기만 했고 **실행한 적이 없습니다.**)
+`aleph.config.json`은 `step` 4입니다. 로그인한 A와 B는 각자 자기 메모만 읽고 추가·수정·삭제하고, 남의 메모 접근과 소유자 변경은 거부됩니다. (처음 가상 메모 중 A의 세 건에 `owner_id`를 연결하는 SQL과 DB 권한 SQL은 학생이 SQL Editor에서 직접 실행했습니다. 결과는 아래 "4단계 확인 기록"에 있습니다. 코딩 도구는 DB에 접속하지 않았습니다.)
 
 - **API 소유자 검사**(`src/notes-api.mjs`): 서버가 토큰으로 확인한 사용자 ID만 소유자로 씁니다. URL·쿼리·본문의 `owner_id`·`userId`·`role`은 읽지 않습니다.
   - 목록·한 건 읽기·수정·삭제: 모두 `id`와 함께 `owner_id = 확인된 사용자 ID`를 한 질의에 넣습니다(확인과 변경 사이에 틈이 없습니다). 본인 조건에 맞는 행이 없을 때만 그 id가 있는지 보고, 있으면(남의 메모, `owner_id`가 비어 있는 처음 메모) **403 `FORBIDDEN`**, 없으면 **404 `NOT_FOUND`** 로 답합니다. 남의 메모의 제목·본문은 응답에 넣지 않습니다.
@@ -154,8 +154,8 @@
 | 소유자 검사(읽기·추가·수정·삭제), 남의 메모 403, 소유자 변경 불가, 본인 메모 정상 | `npm run test:r5` (가짜 DB) | 20건 통과. 옛 코드로 되돌리면 새 시험 3건이 실패함을 확인 | 실행함 (2026-10-07) |
 | `test:package` | `npm run test:package` | 1건 실패(기존 문제, 위 "알려진 문제"의 기준표). 4단계 변경과 무관 | 실행함 (2026-10-07) |
 | 비밀값 검사 | `npm run check:secrets` | 추적 파일 47개에서 키처럼 보이는 문자열 없음 | 실행함 (2026-10-07) |
-| SQL 적용 뒤 A의 세 메모·B의 한 메모 소유자 ID | SQL Editor에서 `sql/4-notes-owner.sql` [3] 표 | — | **미실행 (학생이 실행)** |
-| 적용 전후 권한 대조 | `sql/4-notes-rls.sql` [A]·[C] | — | **미실행 (학생이 실행)** |
+| SQL 적용 뒤 A의 세 메모·B의 한 메모 소유자 ID | SQL Editor에서 소유자 연결 SQL 실행 뒤 `position, id, owner_id` 표 | 5줄: `position` 1·2·3은 같은 `owner_id`(A), 4번은 NULL(주인 없음), `position` NULL 한 줄은 다른 `owner_id`(B의 시험 메모). A 세 건·B 한 건 확인 | 학생이 실행·확인함 (2026-10-07 12:43) |
+| 적용 전후 권한 대조 | `has_table_privilege` 표(`sel·ins·upd·del`) | 적용 전: `anon`·`authenticated` 모두 전부 `false`. 적용(`Success. No rows returned`) 뒤: `anon` 전부 `false`, `authenticated` 네 개 전부 `true`. (TRUNCATE·REFERENCES·TRIGGER 열, `information_schema.role_table_grants` 목록, 정책 4개 개수는 확인하지 않음) | 학생이 실행·확인함 (2026-10-07 12:44~12:45) |
 | 배포된 서버에서 A/B 각자 자기 메모 허용, 상대 메모 읽기·수정·삭제 거부 | 학생이 두 계정으로 화면·F12에서 확인 | — | **미확인** |
 | anon 키로 직접 Data API 거부 | `npm run bundle`의 `anon_data_api_notes_refused` 또는 SQL [D-1] | — | **미실행** (코딩 도구 환경은 외부 접속이 막혀 있음) |
 | 포털 판정(점수) | 포털 | 코딩 도구는 볼 수 없음 | 확인하지 못함 |
@@ -164,7 +164,7 @@
 
 ### 4단계 저장점: 지금 작동하는 기능과 다시 실행하는 방법
 
-- 작동하는 기능: 3단계의 로그인·메모 추가·조회·수정·삭제에 소유자 검사가 더해졌습니다. 로그인한 사용자는 자기 메모만 보고 바꾸며, 남의 메모는 403으로 거부됩니다(없는 id는 404). DB 권한 SQL(`sql/4-notes-rls.sql`)은 **만들어 두었지만 학생이 적용하기 전에는 DB에 반영되지 않았습니다.**
+- 작동하는 기능: 3단계의 로그인·메모 추가·조회·수정·삭제에 소유자 검사가 더해졌습니다. 로그인한 사용자는 자기 메모만 보고 바꾸며, 남의 메모는 403으로 거부됩니다(없는 id는 404). DB 권한 SQL(`sql/4-notes-rls.sql`의 변경 구역)은 학생이 2026-10-07 실행해 `authenticated`에만 4가지 권한이 남았습니다.
 - 설정 대조(2026-10-07): `aleph.config.json`은 `step` 4, `repoUrl`은 Git `origin`과 같은 주소, `publicAppUrl`은 실제 배포 주소, `judgeIssuer`는 바꾸지 않음, `identityProvider`는 3단계와 같음, `allowedRoutes` 5개는 실제 파일과 일치, `originalApiUrl`은 null(5단계부터). `RULE_IDS`는 `starter.deny` 하나뿐입니다.
 - 다시 실행: `npm run test:r5`, `npm run build -- --local`, `npm run check:secrets`, 일반 커밋 위에서 `npm run bundle`(커밋하지 않는 `bundle-notes.json`의 `explanation` 필요, 결과 `artifacts/submission.json`도 커밋하지 않음).
 
