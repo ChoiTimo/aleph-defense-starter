@@ -322,7 +322,9 @@ test('step 3 attack check sends only refusal probes and records status numbers, 
       sent.push({ method: init.method ?? 'GET', path, auth: init.headers?.Authorization, body: init.body });
       if (path === '/data.json') return new Response('Not Found', { status: 404 });
       if (path === '/aleph.json') return new Response(JSON.stringify({ step: 3 }), { status: 200 });
-      return new Response(JSON.stringify({ error: 'LOGIN_REQUIRED', secret: '가상 본문' }), { status: apiStatus });
+      if (apiStatus === 'proxy') return new Response('Host not in allowlist', { status: 403, headers: { 'content-type': 'text/plain' } });
+      if (apiStatus === 401) return new Response(JSON.stringify({ error: 'LOGIN_REQUIRED', secret: '가상 본문' }), { status: 401 });
+      return new Response(JSON.stringify({ id: 'x' }), { status: apiStatus });
     };
     return runAttackChecks({ ...config, step: 3 });
   };
@@ -344,6 +346,11 @@ test('step 3 attack check sends only refusal probes and records status numbers, 
     assert.ok(writes.slice(1).every(item => item.path === '/api/notes/00000000-0000-4000-8000-000000000000'));
     const open = await run(200);
     assert.ok(open.slice(2).every(item => item.observed === '거부되지 않음 (HTTP 200)'));
+    // 앱이 아닌 곳(접속 허용 목록·방화벽)이 보낸 403은 거부됨으로 적지 않고 확인하지 못함으로 적습니다.
+    const blocked = await run('proxy');
+    assert.ok(blocked.slice(2).every(item => item.observed === '확인하지 못함 (HTTP 403, 앱의 응답으로 보이지 않음)'));
+    // 앱이 401이 아닌 다른 오류 JSON(예: 로그인 확인 전에 입력 검사에서 400)을 주면 거부로 치지 않습니다.
+    assert.ok(!JSON.stringify(blocked).includes('거부됨 ('));
   } finally {
     globalThis.fetch = originalFetch;
   }

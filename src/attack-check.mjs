@@ -100,9 +100,25 @@ async function runStep3Checks(doFetch, app, marker) {
   const now = Math.floor(Date.now() / 1000);
   const claims = { iss: 'https://vskaxngivuhucmbnoagz.supabase.co/auth/v1', aud: 'authenticated',
     role: 'authenticated', sub: '11111111-1111-4111-8111-111111111111', exp: now + 600 };
-  const refused = (attackId, expected, response) => ({ attackId, expected,
-    observed: response.status === 401 || response.status === 403
-      ? `거부됨 (HTTP ${response.status})` : `거부되지 않음 (HTTP ${response.status})` });
+  // 2xx 응답이거나 앱이 보낸 JSON이어야 거부 여부의 근거로 삼습니다. 거부는 앱의 401 LOGIN_REQUIRED뿐입니다.
+  // 방화벽·접속 허용 목록·CDN이 보낸 403(JSON이 아닌 글자) 같은 응답은 앱이 거부한 것이 아니므로
+  // "확인하지 못함"으로 적습니다.
+  const refused = async (attackId, expected, response) => {
+    let isAppJson = false;
+    let code = null;
+    try {
+      const data = JSON.parse(await response.text());
+      isAppJson = data !== null && typeof data === 'object';
+      if (typeof data?.error === 'string') code = data.error;
+    } catch {
+      // JSON이 아니면 앱의 응답으로 보지 않습니다.
+    }
+    const notRefused = response.ok || isAppJson;
+    return { attackId, expected,
+      observed: !notRefused ? `확인하지 못함 (HTTP ${response.status}, 앱의 응답으로 보이지 않음)`
+        : response.status === 401 && code === 'LOGIN_REQUIRED' ? '거부됨 (HTTP 401)'
+          : `거부되지 않음 (HTTP ${response.status})` };
+  };
   const cases = [
     ['anonymous_notes_list_refused', '로그인 없는 GET /api/notes가 거부됨', () => send('GET', '/api/notes')],
     ['anonymous_note_create_refused', '로그인 없는 POST /api/notes가 거부됨(빈 본문으로 보냄)', () => send('POST', '/api/notes', { body: {} })],
@@ -114,6 +130,6 @@ async function runStep3Checks(doFetch, app, marker) {
     ['other_issuer_token_refused', '다른 발급자의 로그인 토큰이 거부됨',
       () => send('GET', '/api/notes', { token: fakeJwt({ ...claims, iss: 'https://other.supabase.co/auth/v1' }) })],
   ];
-  for (const [attackId, expected, run] of cases) results.push(refused(attackId, expected, await run()));
+  for (const [attackId, expected, run] of cases) results.push(await refused(attackId, expected, await run()));
   return results;
 }
