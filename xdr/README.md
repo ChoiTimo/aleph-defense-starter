@@ -49,4 +49,4 @@ node scripts/xdr-run.mjs brute-force
 - 파일을 불러오는 순간 키나 환경변수를 요구하지 않습니다.
 - `xdr/alerts.log` 기록과 판정기 연결은 `respond.mjs` 같은 다른 파일에서 합니다. `decide.mjs` 는 판단 결과만 돌려줍니다.
 
-인터넷을 끈 상태에서 `npm run xdr:run -- <moduleKey>` 가 같은 결과를 내면 심판에서도 돕니다.
+인터넷을 끈 상태에서 `npm run xdr:run -- <moduleKey>` 를 돌려도 같은 결과가 나오면 심판에서도 같은 결과가 나옵니다.
