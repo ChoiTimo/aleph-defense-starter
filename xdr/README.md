@@ -38,3 +38,15 @@ node scripts/xdr-run.mjs brute-force
 `npm run xdr:run -- brute-force` 도 같은 명령입니다. 실행기는 해당 경보마다 `decide` 를 부르고, 결과를 `xdr/<moduleKey>/result.json` 에 씁니다. 형식은 `aleph.xdr.result.v1` 이고, `decisions` 에는 경보 id·행동·확신도·이유가, `counts` 에는 `block`·`alert`·`record` 건수가 있습니다.
 
 반환 형식이 틀린 경보는 `record` 로 남고, 오류 한 줄이 출력됩니다. 실행기 자체는 네트워크를 쓰지 않습니다. 판정자는 격리된 환경에서 같은 명령을 다시 실행해 결과를 봅니다. 이미 커밋된 `result.json` 만으로 판정이 끝나지 않습니다.
+
+## 심판 격리 환경에서 지킬 것
+
+심판은 인터넷·환경변수·API 키가 없는 격리 환경에서 `decide` 를 경보마다 부릅니다. 이 환경에서 `decide.mjs` 가 돌지 못하면 건수를 셀 수 없어 `XDR_DECIDE_NOT_RUNNING` 으로 끝납니다.
+
+- `decide.mjs` 와 그 파일이 불러오는 파일은 같은 폴더의 `.mjs` 파일만 `import` 합니다.
+- `node:fs` 같은 내장 모듈, npm 패키지, `patterns.json` 같은 JSON 파일 `import`, `import()` 는 쓰지 않습니다. 패턴은 `patterns.mjs` 에 `export const PATTERNS = [...]` 로 둡니다.
+- 경보 하나에 2초 안에 답합니다. 명확한 공격은 패턴만으로 `block` 을 돌려줍니다. Jev 는 선택이며, 키가 없거나 1초 안에 답이 없으면 묻지 않고 `alert` 로 둡니다.
+- 파일을 불러오는 순간 키나 환경변수를 요구하지 않습니다.
+- `xdr/alerts.log` 기록과 판정기 연결은 `respond.mjs` 같은 다른 파일에서 합니다. `decide.mjs` 는 판단 결과만 돌려줍니다.
+
+인터넷을 끈 상태에서 `npm run xdr:run -- <moduleKey>` 를 돌려도 같은 결과가 나오면 심판에서도 같은 결과가 나옵니다.
