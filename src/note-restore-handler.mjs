@@ -4,7 +4,7 @@ const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const hash = value => createHash('sha256').update(value).digest('hex');
 export const noteContentHash = ({title,body}) => hash(JSON.stringify({title,body}));
 
-export function createNoteRestoreHandler({createClient,verifyLogin,env=process.env}) {
+export function createNoteRestoreHandler({createClient,verifyLogin,env=process.env,onConfirmedRestore=async()=>{}}) {
   return async(req,res)=>{
     res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');
     const deny=(status,reasonCode)=>res.status(status).json({error:'메모 복원 요청을 처리할 수 없습니다.',reasonCode});
@@ -61,6 +61,8 @@ export function createNoteRestoreHandler({createClient,verifyLogin,env=process.e
       if(!result.data)return deny(409,'restore_conflict');
       const actual=result.data, actualHash=noteContentHash(actual);
       if(actual.id?.toLowerCase()!==id||actual.owner_id?.toLowerCase()!==backupOwner||actualHash!==note.contentSha256)return deny(502,'restore_verification_failed');
+      try { await onConfirmedRestore({version:expected}); }
+      catch { res.setHeader('X-Operations-Audit','unavailable'); }
       return res.status(200).json({id,ownerId:backupOwner,contentSha256:actualHash,restored:true});
     }catch {return deny(502,'restore_database_failed');}
   };

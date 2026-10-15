@@ -84,6 +84,11 @@ async function runProtectionChecks(config) {
           && data.deviceRegistered === false, undefined, method);
     }
   }
+  if (config.step >= 12) {
+    await check('anonymous_operations_summary', '/api/operations-summary',
+      '무로그인 작전실 요약은 401이며 가린 기록도 반환하지 않음',
+      (response, data) => response.status === 401 && data?.reasonCode === 'login_required' && !('evidence' in data));
+  }
   await check('invalid_login_token', '/api/notes',
     '유효하지 않은 로그인 토큰은 JSON 오류로 거부', denied, 'Bearer invalid');
   await check('static_notes_removed', '/data.json',

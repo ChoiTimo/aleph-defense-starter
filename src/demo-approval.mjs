@@ -8,7 +8,7 @@ const publicRecord = row => ({ requestId: row.id, state: row.state, createdAt: r
 
 // A demo session handle proves possession of a page session, not hardware identity.
 // Only server-stored state and the verified login can authorize dummy data.
-export function createDemoHandler({ verifyLogin, getStore, env = process.env }) {
+export function createDemoHandler({ verifyLogin, getStore, env = process.env, onConfirmedRevocation = async () => {} }) {
   return async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -62,6 +62,10 @@ export function createDemoHandler({ verifyLogin, getStore, env = process.env }) 
       if (body.action === 'list') return res.status(200).json({ demo: true, requests: (await store.list()).map(publicRecord) });
       const row = await store.transition(body.requestId, body.action === 'approve' ? 'approved' : 'revoked', owner);
       if (!row) return fail(409, 'request_changed', '요청이 바뀌었거나 이미 처리됐습니다. 목록을 다시 확인하세요.');
+      if (body.action === 'revoke') {
+        try { await onConfirmedRevocation(); }
+        catch { res.setHeader('X-Operations-Audit', 'unavailable'); }
+      }
       return res.status(200).json({ demo: true, ...publicRecord(row) });
     } catch {
       return fail(503, 'demo_setup_required', '데모 승인 저장소 연결이 준비되지 않았습니다.');

@@ -9,6 +9,7 @@
     "api/notes/[id].js",
     "api/notices.js",
     "api/notices/[id].js",
+    "api/operations-summary.js",
     "api/restore-note.js",
     "api/threat-intel.js"
   ]

@@ -6,7 +6,7 @@ import {deploymentIdentity} from '../scripts/deployment-identity.mjs';
 import {createNoteRestoreHandler,noteContentHash} from '../src/note-restore-handler.mjs';
 const A='00000000-0000-4000-8000-000000000001',B='00000000-0000-4000-8000-000000000002';
 const ID='00000000-0000-4000-8000-000000000022',OTHER='00000000-0000-4000-8000-000000000033';
-function fixture({missing=false,foreign=false,race=false,collision=false,afterRead}={}) {
+function fixture({missing=false,foreign=false,race=false,collision=false,afterRead,onConfirmedRestore}={}) {
   const note={schema:'aleph.note-backup.v1',id:ID,ownerId:B,title:'B fixture',body:'synthetic recovery fixture'};
   note.contentSha256=noteContentHash(note);
   const raw=JSON.stringify(note);
@@ -34,15 +34,27 @@ function fixture({missing=false,foreign=false,race=false,collision=false,afterRe
       async maybeSingle(){return execute();}};
     return query;
   }};
-  const handler=createNoteRestoreHandler({env,createClient:()=>db,verifyLogin:async token=>
+  const handler=createNoteRestoreHandler({env,createClient:()=>db,onConfirmedRestore,verifyLogin:async token=>
     token==='fixture-b'?{kind:'student',userId:B}:token==='fixture-a'?{kind:'student',userId:A}:null});
   const call=async({actor='fixture-b',method='POST',body={id:ID,ownerId:B,contentSha256:note.contentSha256},url='/api/restore-note'}={})=>{
-    const res={setHeader(){},status(v){this.code=v;return this;},json(v){this.data=v;return this;}};
+    const res={headers:{},setHeader(k,v){this.headers[k]=v;},status(v){this.code=v;return this;},json(v){this.data=v;return this;}};
     await handler({method,url,body,headers:actor?{authorization:actor}:{}},res);
     return res;
   };
   return {call,rows,audit,note,env,get writes(){return writes;}};
 }
+
+test('operations audit receives only the verified backup version after a successful restore', async()=>{
+  const records=[];
+  const f=fixture({onConfirmedRestore:async record=>records.push(record)});
+  assert.equal((await f.call({actor:'fixture-a'})).code,403);assert.equal(records.length,0);
+  assert.equal((await f.call()).code,200);
+  assert.deepEqual(records,[{version:f.env.VAULT_NOTE_BACKUP_SHA256}]);
+  assert.equal(Object.hasOwn(records[0],'body'),false);assert.equal(Object.hasOwn(records[0],'ownerId'),false);
+  const noAudit=fixture({onConfirmedRestore:async()=>{throw new Error('audit store unavailable');}});
+  const res=await noAudit.call();assert.equal(res.code,200);assert.equal(res.data.restored,true);
+  assert.equal(res.headers['X-Operations-Audit'],'unavailable');
+});
 test('B restores exactly the designated memo with matching id, owner and hash while preserving others and audit',async()=>{
   for(const missing of [false,true]) {
     const f=fixture({missing}),other=structuredClone(f.rows[0]),audit=structuredClone(f.audit);

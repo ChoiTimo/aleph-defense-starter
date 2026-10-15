@@ -4,6 +4,8 @@ import { readFile } from 'node:fs/promises';
 import { createContext, runInContext } from 'node:vm';
 import { protectDeviceRequests } from '../src/protected-device-handler.mjs';
 import { createDemoVerifier } from '../src/demo-runtime.mjs';
+import { buildOperationsSummary } from '../src/operations-summary.mjs';
+import { RULE_IDS } from '../src/decider.mjs';
 
 test('existing vault requests stay hidden pending, then show existing notes and preserve CRUD request handles', async () => {
   const source = async name => readFile(new URL('../public/' + name, import.meta.url), 'utf8');
@@ -30,23 +32,34 @@ test('existing vault requests stay hidden pending, then show existing notes and 
       }
       assert.equal(state, 'approved');
       assert.equal(options.headers['X-Demo-Session'], 'a'.repeat(43));
+      if (path === '/api/operations-summary') return { ok: true, status: 200,
+        json: async () => buildOperationsSummary({ ruleIds: RULE_IDS, rows: [] }) };
       assert.ok(path.startsWith('/api/notes'));
       if (options.method === 'DELETE') return { ok: true, status: 204, json() { throw new Error('204 must not parse JSON'); } };
       return { ok: true, status: 200, json: async () => path === '/api/notes' && options.method === 'GET' ? [note] : note };
     } });
   runInContext((await source('demo-device-client.js')).replace('export function ', 'function '), context);
   runInContext((await source('device-approval.js')).replace(/^import.*$/m, '').replace('export function ', 'function '), context);
+  runInContext((await source('operations-panel.js')).replaceAll('export function ', 'function '), context);
   const html = await source('index.html');
   assert.doesNotMatch(html, /가상 자료로 서버 승인 데모 체험하기|href="\/demo-approval.html"/);
   const code = html.match(/<script type="module">([\s\S]*?)<\/script>/)[1]
     .replace("import { createDeviceApproval } from '/device-approval.js';", '')
+    .replace("import { createOperationsPanel } from '/operations-panel.js';", '')
     .replace("const { createBrowserAuth } = await import('/auth-client.js');", 'const createBrowserAuth = () => suppliedAuth;');
   await runInContext('(async () => {' + code + '})()', context);
   for (const timer of timers) await timer();
   await node('#device-request').listeners.click();
   assert.equal(node('#notes').hidden, true); assert.equal(calls.some(c => c.path === '/api/notes'), false);
+  assert.equal(node('#operations-room').hidden, true);
   state = 'approved'; await node('#device-refresh').listeners.click();
   assert.equal(node('#notes').hidden, false); assert.equal(node('#notes').children[0].children[0].textContent, note.title);
+  assert.equal(node('#operations-room').hidden, false);
+  await node('#ops-refresh').listeners.click();
+  assert.match(node('#ops-rules').textContent, /3개/);
+  assert.match(node('#ops-detection').textContent, /미실행/);
+  const evidence = JSON.parse(node('#ops-evidence').textContent);
+  assert.equal(evidence.rules.length, RULE_IDS.length); assert.equal(evidence.records.length, 0);
   node('#note-title').value = 'updated'; node('#note-body').value = 'new-body';
   await node('#note-form').listeners.submit({ preventDefault() {} });
   assert.ok(calls.some(c => c.path === '/api/notes' && c.method === 'POST'));
@@ -58,6 +71,7 @@ test('existing vault requests stay hidden pending, then show existing notes and 
   assert.ok(calls.some(c => c.path.endsWith(note.id) && c.method === 'DELETE'));
   state = 'revoked'; await node('#device-refresh').listeners.click();
   assert.equal(node('#notes').hidden, true); assert.equal(node('#notes').children.length, 0);
+  assert.equal(node('#operations-room').hidden, true); assert.equal(node('#ops-evidence').textContent, '');
   await node('#logout-button').listeners.click();
   assert.equal(node('#note-form').hidden, true);
 });

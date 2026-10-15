@@ -24,12 +24,15 @@ test('the real page module links against its actual browser dependencies', async
   // Link the unchanged import declarations without executing DOM or login code.
   // This catches missing named exports before the browser starts the page.
   const demoDependency = await readFile(new URL('../public/demo-device-client.js', import.meta.url), 'utf8');
+  const operationsDependency = await readFile(new URL('../public/operations-panel.js', import.meta.url), 'utf8');
   const code = `
     import { SourceTextModule } from 'node:vm';
     const page = new SourceTextModule(${JSON.stringify(script)});
     const approval = new SourceTextModule(${JSON.stringify(dependency)});
     const demo = new SourceTextModule(${JSON.stringify(demoDependency)});
+    const operations = new SourceTextModule(${JSON.stringify(operationsDependency)});
     await page.link(specifier => {
+      if (specifier === '/operations-panel.js') return operations;
       if (specifier === '/demo-device-client.js') return demo;
       if (specifier !== '/device-approval.js') throw new Error('Unexpected dependency');
       return approval;

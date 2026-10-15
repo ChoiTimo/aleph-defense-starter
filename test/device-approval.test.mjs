@@ -96,9 +96,11 @@ test('actual page makes no memo request even when a mock returns approved labels
     return { ok: true, status: 200, json: async () => path === '/api/device-approval'
       ? { ...approved, state, deviceRegistered: state === 'approved' } : [] };
   };
+  runInContext((await source('operations-panel.js')).replaceAll('export function ', 'function '), h.context);
   const html = await source('index.html');
   const code = html.match(/<script type="module">([\s\S]*?)<\/script>/)[1]
     .replace("import { createDeviceApproval } from '/device-approval.js';", '')
+    .replace("import { createOperationsPanel } from '/operations-panel.js';", '')
     .replace("const { createBrowserAuth } = await import('/auth-client.js');", 'const createBrowserAuth = () => suppliedAuth;');
   await runInContext('(async () => {' + code + '})()', h.context);
   for (const timer of timers) await timer();
